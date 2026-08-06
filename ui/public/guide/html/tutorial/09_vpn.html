@@ -1,0 +1,87 @@
+<h1 id="사이트-간-사설-네트워크vpn">사이트 간 사설 네트워크(VPN)</h1>
+</header>
+<p>사이트 간 사설 네트워크는 두 VPC에 Gateway를 제공하고 이를 통해서
+접속하는 방식이다.</p>
+<p>이렇게 VPC간에 Gateway를 제공하기 위해, 먼저 VPC들은 각자의 Gateway를
+생성해야 한다.</p>
+<h2 id="사전준비">사전준비</h2>
+<img src="/guide/html/images/tutorial/09_vpn_image1.png" style="width:10in" />
+
+<p>[그림 1] VPC-A Gateway 생성 결과</p><br />
+
+<img src="/guide/html/images/tutorial/09_vpn_image2.png" style="width:10in" />
+
+<p>[그림 2] VPC-B Gateway 생성 결과</p><br />
+
+<p>게이트웨이가 생기면서 공용 IP를 할당 받게 된다. 이제 양쪽 VPC는
+상대방의 공용 IP를 고객 게이트웨이로 등록해야 한다. <strong>vpc-a-cg 고객 게이트웨이 생성 화면</strong>에서 다음
+정보를 입력한다.</p>
+<ul>
+<li><p><strong>이름:</strong> 게이트웨이 이름을 작성한다.</p></li>
+<li><p><strong>게이트웨이:</strong> VPC-B의 게이트웨이 Public IP
+주소</p></li>
+<li><p><strong>전송원 CIDR :</strong> VPC-B의 CIDR</p></li>
+<li><p><strong>IPsec 사전 공유키:</strong> Gateway-고객 Gateway가 공유할
+비밀 키</p></li>
+</ul>
+<img src="/guide/html/images/tutorial/09_vpn_image3.png" style="width:10in" />
+
+<p>[그림 3] vpc-a-cg 고객 게이트웨이 생성 화면</p><br />
+
+<p><strong>vpc-b-cg 고객 게이트웨이 생성 화면</strong>에는
+다음과 같이 입력한다.</p>
+<ul>
+<li><p><strong>이름:</strong> 고객 게이트웨이 이름을 작성한다.</p></li>
+<li><p><strong>게이트웨이:</strong> VPC-A의 게이트웨이 Public IP
+주소</p></li>
+<li><p><strong>전송원 CIDR:</strong> VPC-A의 CIDR</p></li>
+<li><p><strong>IPsec 사전 공유키:</strong> Gateway-고객 Gateway가 공유할
+비밀 키</p></li>
+</ul>
+<img src="/guide/html/images/tutorial/09_vpn_image4.png" style="width:10in" />
+
+<p>[그림 4] vpc-b-cg 고객 게이트웨이 생성 화면</p><br />
+
+<p>각각 상대방의 게이트웨이 주소와, 상대방의 CIDR을 입력해야 한다.</p>
+<ul>
+<li><p><strong>vpn-cgw-a:</strong> 10.1.0.0/16</p></li>
+<li><p><strong>vpn-cgw-b:</strong> 10.2.0.0/16</p></li>
+</ul>
+<h2 id="vpn-연결-생성">VPN 연결 생성</h2>
+<p>VPN 연결을 이용해서 앞서 설정한 IPsec 사전 공유키를 통한 실제 IPsec
+터널을 생성한다. 아래 <strong>그림 5‑26 VPN 연결 생성
+화면</strong>에서 게이트웨이와 그 게이트웨이 정보가 입력된 고객 게이트웨이를
+선택하고 생성한다.</p>
+<img src="/guide/html/images/tutorial/09_vpn_image5.png" style="width:10in" />
+
+<p>[그림 5] VPN 연결 생성 화면</p><br />
+
+<p>예시와 같은 사이트간 고객 게이트웨이와 사이트간 VPN 게이트웨이를 각각
+다음과 같이 지정하면 된다.</p>
+<ul>
+<li><p><strong>vpn-a-cg:</strong> 10.10.14.53</p></li>
+<li><p><strong>vpn-b-cg:</strong> 10.10.14.52</p></li>
+</ul>
+<p>이제 각 연결의 상태가 Connected가 되었다면 이제 각 VPC는 서로 통신
+가능한 상태가 된다.</p>
+<p>이전에 <strong>VPC-A-WEB에서 VPC-A-APP과
+VPC-B-WEB으로 ping 결과</strong>와 달리 아래 <strong>VPC-A-WEB에서 VPC-A-APP/VPC-B-WEB으로 ping한
+결과</strong>에서 순서대로 VPC-A-APP ping과 VPC-B-WEB ping이 전부 성공한 것을
+알 수 있다. 또한 그 반대인 <strong>VPC-B-WEB에서
+VPC-B-APP/VPC-A-APP으로 ping한 결과</strong>도 마찬가지로 성공하는 것을 알 수
+있다.</p>
+<img src="/guide/html/images/tutorial/09_vpn_image6.png" style="width:10in" />
+
+<p>[그림 6] VPC-A-WEB에서 VPC-A-APP/VPC-B-WEB으로 ping한 결과</p><br />
+
+<img src="/guide/html/images/tutorial/09_vpn_image7.png" style="width:10in" />
+
+<p>[그림 7] VPC-B-WEB에서 VPC-B-APP/VPC-A-APP으로 ping한 결과</p><br />
+
+<p>참고로 ACL은 여전히 동작한다. 아래의 <strong>그림
+5‑29 VPC-A-WEB에서 VPC-B-APP에 ping 및 22번 포트 통신 결과</strong>의
+경우에서 vm-vpc-a는 VPN의 도움으로 vm-vpc-b-app-tier에 ping을 날리는
+것은 가능하지만 22번 포트는 여전히 ACL로 인해 불가능한 모습이다.</p>
+<img src="/guide/html/images/tutorial/09_vpn_image8.png" style="width:10in" />
+
+<p>[그림 8] VPC-A-WEB에서 VPC-B-APP에 ping 및 22번 포트 통신 결과</p>

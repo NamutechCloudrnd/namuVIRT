@@ -466,22 +466,58 @@
   ],
   "tutorial": [
     {
-      "id": "tutorial_compute",
-      "label": "Compute",
+      "id": "tutorial_01_template_vm",
+      "label": "Template 기반 VM 생성",
       "icon": "fa-microchip",
-      "path": "tutorial/01_compute.html"
+      "path": "tutorial/01_template_vm.html"
     },
     {
-      "id": "tutorial_network",
-      "label": "Network",
+      "id": "tutorial_02_autoscaling_groups",
+      "label": "AutoScaling Groups",
+      "icon": "fa-microchip",
+      "path": "tutorial/02_autoscaling_groups.html"
+    },
+    {
+      "id": "tutorial_03_kubernetes_cluster",
+      "label": "Kubernetes Cluster",
+      "icon": "fa-microchip",
+      "path": "tutorial/03_kubernetes_cluster.html"
+    },
+    {
+      "id": "tutorial_04_vm_ha",
+      "label": "HA 환경 구성",
+      "icon": "fa-microchip",
+      "path": "tutorial/04_vm_ha.html"
+    },
+    {
+      "id": "tutorial_05_vmware_to_kvm",
+      "label": "VMware to KVM 마이그레이션",
+      "icon": "fa-microchip",
+      "path": "tutorial/05_vmware_to_kvm.html"
+    },
+    {
+      "id": "tutorial_06_gpu_passthrough",
+      "label": "GPU 설정",
+      "icon": "fa-microchip",
+      "path": "tutorial/06_gpu_passthrough.html"
+    },
+    {
+      "id": "tutorial_07_network",
+      "label": "Network 구성",
       "icon": "fa-globe",
-      "path": "tutorial/02_network.html"
+      "path": "tutorial/07_network.html"
     },
     {
-      "id": "tutorial_infrastructure",
-      "label": "Infrastructure",
-      "icon": "fa-server",
-      "path": "tutorial/03_infrastructure.html"
+      "id": "tutorial_08_vpc",
+      "label": "VPC 구성",
+      "icon": "fa-globe",
+      "path": "tutorial/08_vpc.html"
+    },
+    {
+      "id": "tutorial_09_vpn",
+      "label": "VPN 구성",
+      "icon": "fa-globe",
+      "path": "tutorial/09_vpn.html"
     }
   ]
 }

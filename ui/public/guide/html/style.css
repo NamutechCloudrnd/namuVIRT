@@ -316,6 +316,98 @@ p > img {
   width: 600px;
 }
 
+/* 본문 이미지 확대 보기(라이트박스) */
+.content img {
+  cursor: zoom-in;
+}
+
+.image-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.9);
+}
+
+.image-lightbox.is-open {
+  display: flex;
+}
+
+.image-lightbox-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  overflow: auto;
+}
+
+.image-lightbox-img {
+  max-width: 100vw;
+  max-height: 100vh;
+  object-fit: contain;
+  cursor: zoom-in;
+  border: none;
+}
+
+.image-lightbox.is-zoomed .image-lightbox-stage {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.image-lightbox.is-zoomed .image-lightbox-img {
+  max-width: none;
+  max-height: none;
+  width: auto;
+  height: auto;
+  margin: auto;
+  cursor: zoom-out;
+}
+
+.image-lightbox-close {
+  position: absolute;
+  top: 1rem;
+  right: 1.25rem;
+  z-index: 1;
+  width: 2.5rem;
+  height: 2.5rem;
+  font-size: 1.75rem;
+  line-height: 1;
+  color: #fff;
+  background-color: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.image-lightbox-close:hover,
+.image-lightbox-close:focus {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+  outline: none;
+}
+
+.image-lightbox-hint {
+  position: absolute;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.85);
+  background-color: rgba(0, 0, 0, 0.45);
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+body.image-lightbox-open {
+  overflow: hidden;
+}
+
 a {
   color: var(--color-accent);
   text-decoration: none;

@@ -1,0 +1,226 @@
+<h1 id="인스턴스-생성과-view-console-접속-계정-관리-가이드">인스턴스
+생성과 View Console 접속 계정 관리 가이드</h1>
+</header>
+<p>이 문서는 Template을 통해 Instance 생성 직후 사용할 수 있는 접속
+계정을 준비하고 검증하는 절차를 다룬다.</p>
+<p>Template(템플릿)은 운영체제가 미리 설치된 “디스크 이미지(원본)”이고,
+Instance(인스턴스)는 그 Template으로 만들어 실제 실행되는 가상 서버이다.
+아래 순서대로 진행한다.</p>
+<table>
+<thead>
+<tr>
+<th>① Template 준비(생성) → ② Template으로 Instance 생성 → ③ View
+Console 접속</th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<h1 id="1-template-준비생성">1. Template 준비(생성)</h1>
+<p>인스턴스의 바탕이 되는 OS 이미지를 등록하고, 인스턴스 접속에
+쓸 <strong>비밀번호 관리 정책</strong>을 정한다. 이미 알맞은 Template이
+있으면 이 단계는 건너뛰어도 된다.</p>
+<ol type="1">
+<li><p>좌측 메뉴에서 <strong>이미지(Images) &gt; 템플릿(Templates)</strong>로 이동한
+뒤 <strong>템플릿 등록</strong>을 클릭한다.</p></li>
+<li><p>이름·설명, 외부 이미지 <strong>URL</strong>(또는 파일
+업로드), <strong>운영체제 유형</strong>, <strong>Zone</strong> 등을
+입력한다.</p></li>
+<li><p>아래 <strong>비밀번호 관리 정책</strong>(방식 A 또는 B) 중 하나를
+정한다.</p></li>
+<li><p>입력을 마치면 <strong>등록</strong>한다. 템플릿 목록에서
+상태가 <strong>준비 완료(Ready)</strong>로 바뀌면 사용할 수 있다. (URL 등록 시
+다운로드에 시간이 걸릴 수 있다.)</p></li>
+</ol>
+<img src="/guide/html/images/tutorial/01_template_vm_image1.png" style="width:10in" />
+
+<h2 id="1-1-view-console-접속-계정-비밀번호-관리-정책">1-1. View Console
+접속 계정 비밀번호 관리 정책</h2>
+<blockquote>
+<p>Instance의 View Console 접속 계정 관리 방식은 세가지로 제공된다.
+Template에 계정과 비밀번호를 준비해 Web Console 또는 비밀번호 기반
+로그인에 사용하는 방식과, Template 자체의 Password enabled 설정을 통해
+생성할 때 초기화를 해주는 방식으로 구성된다.</p>
+</blockquote>
+<p>방식별 적용 기준</p>
+<table>
+<thead>
+<tr>
+<th><strong>방식</strong></th>
+<th><strong>사용 목적</strong></th>
+<th><strong>Template 요구 조건</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Password Enabled</td>
+<td>Instance 생성 시 초기 비밀번호 발급</td>
+<td>'cloud-init' 비밀번호 처리와 필요한 조회 도구 준비</td>
+</tr>
+<tr>
+<td>커스텀 계정/비밀번호</td>
+<td>Web Console에서 즉시 로그인</td>
+<td>이미지 내부 계정, 비밀번호, Shell, sudo 권한 준비</td>
+</tr>
+<tr>
+<td>SSH Key Pair</td>
+<td>공개키</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<ol type="1">
+<li><strong>Password Enable 방식</strong></li>
+</ol>
+<img src="/guide/html/images/tutorial/01_template_vm_image2.png" style="width:5in" />
+
+<p>템플릿 등록 시 비밀번호 사용(Password Enabled) 옵션을 선택한다.</p>
+<p>이 템플릿으로 인스턴스를 만들면 초기 비밀번호가 자동으로 발급되어
+생성 직후 화면에 표시된다.</p>
+<blockquote>
+<p>이 기능은 cloud-init 방식로 작동하기 때문에 Template가 되는
+OS에 wget이 기본 요구되며, 없으면 비밀번호가 초기화되지
+않는다.</p>
+<p>Ubuntu와 CentOS는 기본 제공되며, Rocky Linux는 기본 제공되지
+않는다.</p>
+</blockquote>
+<p>OS별 기본 생성 계정 정보</p>
+<table>
+<thead>
+<tr>
+<th><strong>OS</strong></th>
+<th><strong>기본 계정</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ubuntu</td>
+<td>'ubuntu'</td>
+</tr>
+<tr>
+<td>Rocky Linux</td>
+<td>'rocky'</td>
+</tr>
+<tr>
+<td>CentOS 계열</td>
+<td>'centos'</td>
+</tr>
+</tbody>
+</table>
+<p>Rocky Linux 8 기본 이미지에서는 cloud-init이 비밀번호를 가져오는
+과정에서 wget이 존재하지 않아, 기본 제공 이미지 파일로는 실패한다.</p>
+<blockquote>
+<p>$ Running command ['wget', '--quiet', '--tries', '3', '--timeout',
+'20',<br />
+$ '--output-document', '-', '--header', 'DomU_Request:
+send_my_password',<br />
+$ '10.10.14.1:8080']<br />
+<br />
+$ Failed to fetch password from virtual router 10.10.14.1<br />
+$ FileNotFoundError: [Errno 2] No such file or directory: b'wget'</p>
+</blockquote>
+<p>이 결과는 Password Enabled 설정만으로 기능 동작을 보장할 수 없음을
+보여준다. Template 이미지 내부에 비밀번호 조회에 필요한 도구와
+cloud-init 구성이 함께 준비돼 있어야 한다.</p>
+<ol start="2" type="1">
+<li><strong>커스텀 계정/비밀번호</strong></li>
+</ol>
+<p>이 방식은, Template로 쓰일 이미지 파일 자체에 계정과 비밀번호를 먼저
+주입하고, 이를 namuVIRT에 업로드하여 이를 이용하는 방식이다. 이는
+<strong>사용자의 환경에 맞춰진 설정을 기반으로 진행</strong>되어야
+한다.</p>
+<p>아래 절차는 커스텀 Template 구성 방법을 설명하기 위한 예시다. 설정을
+통해 계정 정보를 추가하고, namuVIRT에 업로드하는 일련의 과정들을
+다룬다.</p><br />
+<p>1) 실제 작업에서는 사용하는 OS 이미지, 계정 정책, 패키지 저장소, 보안
+기준에 맞게 명령과 값을 조정한다. 이 예시에서는 Ubuntu 이미지에 검증용
+계정을 추가하고 비밀번호를 설정한다.</p>
+<blockquote>
+<p>$ cd ~/Downloads<br />
+<br />
+$ docker run --rm -it \<br />
+--privileged \<br />
+--platform linux/amd64 \<br />
+-v "$PWD:/work" \<br />
+ubuntu:24.04 bash</p>
+</blockquote>
+<p>2) 컨테이너 안에서 이미지 가공 도구를 설치한다.</p>
+<blockquote>
+<p>$ apt-get update<br />
+<br />
+$ DEBIAN_FRONTEND=noninteractive apt-get install -y \<br />
+guestfs-tools \<br />
+qemu-utils \<br />
+linux-image-generic</p>
+</blockquote>
+<p>3) 원본 이미지를 복사해 별도 작업 파일을 만든다.</p>
+<blockquote>
+<p>$ cd /work<br />
+<br />
+$ cp -a ubuntu-24.04-server-cloudimg-amd64.img \<br />
+ubuntu-24.04-server-cloudimg-amd64-custom.img</p>
+</blockquote>
+<p>4) virt-customize로 관리자 계정과 Ubuntu 기본 계정을 준비한다.</p>
+<blockquote>
+<p>$ export LIBGUESTFS_BACKEND=direct<br />
+$ ADMIN_USER="&lt;ADMIN_USER&gt;"<br />
+$ PASSWORD="&lt;PASSWORD&gt;"<br />
+<br />
+$ virt-customize -a ubuntu-24.04-server-cloudimg-amd64-custom.img
+\<br />
+--run-command "id ${ADMIN_USER} &gt;/dev/null 2&gt;&amp;1 || useradd -m
+-s /bin/bash ${ADMIN_USER}" \<br />
+--run-command 'id ubuntu &gt;/dev/null 2&gt;&amp;1 || useradd -m -s
+/bin/bash ubuntu' \<br />
+--password "${ADMIN_USER}:password:${PASSWORD}" \<br />
+--password "ubuntu:password:${PASSWORD}" \<br />
+--run-command "usermod -aG sudo ${ADMIN_USER}" \<br />
+--run-command 'usermod -aG sudo ubuntu'</p>
+</blockquote>
+<p>5) 이미지 내부 계정을 확인한다.</p>
+<blockquote>
+<p>$ virt-cat -a ubuntu-24.04-server-cloudimg-amd64-custom.img
+/etc/passwd \<br />
+| grep -E "^(${ADMIN_USER}|ubuntu):"</p>
+</blockquote>
+<h1 id="2-template으로-instance-생성">2. Template으로 Instance 생성</h1>
+<p>등록된 Template을 골라 가상 서버(인스턴스)를 만든다.</p>
+<ol type="1">
+<li><p>컴퓨트(Compute) &gt; 인스턴스(Instances)에서 인스턴스 추가를
+클릭한다.</p></li>
+<li><p>마법사에서 소유 계정·도메인을 선택한다. (보통 기본값
+사용)</p></li>
+<li><p>배포할 Zone(영역)을 선택한다.</p></li>
+<li><p>이미지 단계에서 유형을 템플릿으로 두고, 운영체제와 사용할
+Template을 선택한다.</p></li>
+<li><p>컴퓨트 오퍼링(CPU·메모리)과 네트워크, 인스턴스 이름을 지정한 뒤
+인스턴스 생성을 클릭한다.</p></li>
+</ol>
+<img src="/guide/html/images/tutorial/01_template_vm_image3.png" style="width:10in" />
+<br /><br />
+<p>이미지 단계 — 유형을 템플릿으로 두고 Template 선택</p>
+<img src="/guide/html/images/tutorial/01_template_vm_image4.png" style="width:6in; height:3in" />
+
+<table>
+<thead>
+<tr>
+<th><strong>* 완료 확인:</strong> 잠시 후 인스턴스 상태가 <strong>Running(실행
+중)</strong>으로 바뀌면 생성이 완료된다.</th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
+<h1 id="3-콘솔view-console-접속">3. 콘솔(View Console) 접속</h1>
+<p>생성한 인스턴스에 웹 브라우저로 바로 접속한다. (인스턴스가 Running
+상태여야 한다.)</p>
+<ol type="1">
+<li><p>인스턴스(Instances) 목록에서 접속할 인스턴스를 클릭해 상세 화면을
+연다.</p></li>
+<li><p>상세 화면 상단의 작업 아이콘에서 콘솔 보기(View Console)를
+클릭한다.<br />
+<img src="/guide/html/images/tutorial/01_template_vm_image5.png" style="width:4.11458in;height:1.55409in" /></p></li>
+<li><p>새 창에 Linux 웹 콘솔(터미널)이 열린다. 여기에 계정과 비밀번호로
+로그인한다.<br />
+<img src="/guide/html/images/tutorial/01_template_vm_image6.png" style="width:10in" /></p></li>
+</ol>

@@ -1,0 +1,202 @@
+<h1 id="vmware-to-kvm-migration">VMware to KVM 마이그레이션</h1>
+</header>
+<h2 id="개요">개요</h2>
+<blockquote>
+<p>VMware vSphere 또는 ESXi 환경에서 운영 중인 가상머신을 namuVIRT KVM
+Cluster의 Instance로 가져오는 작업을 다룬다.</p>
+</blockquote>
+<h2 id="vmware-환경-확인">VMware 환경 확인</h2>
+<h3 id="vsphere-cluster-생성-화면">vSphere Cluster 생성 화면</h3>
+<blockquote>
+<p>필요한 경우 vSphere Client에서 Datacenter 하위에 Cluster를
+생성한다.</p>
+</blockquote>
+<img src="/guide/html/images/tutorial/05_vmware_to_kvm_image1.png" style="width:7in" />
+
+<p>[그림 1] vSphere Cluster 생성 화면</p>
+<blockquote>
+<p>ESXi Host가 해당 Cluster 아래에 배치되어 있는지 확인한다.</p>
+</blockquote>
+<img src="/guide/html/images/tutorial/05_vmware_to_kvm_image2.png" style="width:4in" />
+
+<p>[그림 2] vSphere Inventory 구조 확인 화면</p>
+<blockquote>
+<p>Datacenter, Cluster, ESXi Host의 Inventory 배치 구조를 확인한다.</p>
+<p>namuVIRT에 입력하는 Cluster 값은 vSphere의 실제 Cluster
+이름과 일치해야 한다.</p>
+</blockquote>
+<h2 id="namuvirt-web-ui-연동-정보-등록">namuVIRT Web UI 연동 정보
+등록</h2>
+<h3 id="zone-상세-화면--vmware-datacenter-추가">Zone 상세 화면 — VMware
+Datacenter 추가</h3>
+<blockquote>
+<p>VMware VM을 Import하려면 대상 Zone에 vCenter Datacenter 정보를 먼저
+등록해야 한다.</p>
+</blockquote>
+<img src="/guide/html/images/tutorial/05_vmware_to_kvm_image3.png" style="width:9in" />
+
+<p>[그림 3] Zone 상세 화면 - VMware Datacenter 추가</p>
+<blockquote>
+<p>대상 Zone 상세 화면에서 오른쪽 위에 존재하는 VMware 데이터센터 추가
+버튼을 눌러 진행한다.</p>
+</blockquote>
+<img src="/guide/html/images/tutorial/05_vmware_to_kvm_image4.png" style="width:7in" />
+
+<p>[그림 4] VMware Datacenter 추가 정보 입력 화면</p>
+<blockquote>
+<p>vCenter 주소, Datacenter 이름, 계정 정보를 입력한다.</p>
+<p>Datacenter 이름은 vSphere Inventory에 표시되는 이름과
+일치해야 한다.</p>
+</blockquote>
+<h3 id="vmware-cluster-및-datastore-등록">VMware Cluster 및 Datastore
+등록</h3>
+<img src="/guide/html/images/tutorial/05_vmware_to_kvm_image5.png" style="width:8in" />
+
+<p>[그림 5] namuVIRT VMware Cluster 추가 화면</p>
+<blockquote>
+<p>namuVIRT Web UI에서 Cluster 추가 화면으로 이동한다.</p>
+<p>namuVIRT의 Infrastructure의 cluster탭에서, VMware용 Cluster를
+추가하는 화면이다.</p>
+<p>Cluster 이름과 Datacenter 이름은 vSphere Inventory의 실제 표시명을
+기준으로 입력한다.</p>
+<p>vSphere에 존재하는 Cluster의 이름을 namuVIRT에 Cluster
+이름으로 등록한다. 반드시 일치해야한다.</p>
+</blockquote>
+<img src="/guide/html/images/tutorial/05_vmware_to_kvm_image6.png" style="width:8in" />
+
+<p>[그림 6] VMware Cluster 등록 결과 확인 화면</p>
+<h3 id="vmware-primary-storage-추가-화면">VMware Primary Storage 추가
+화면</h3>
+<img src="/guide/html/images/tutorial/05_vmware_to_kvm_image7.png" style="width:8in" />
+
+<p>[그림 7] VMware Primary Storage 추가 화면</p>
+<blockquote>
+<p>VMware Cluster에서 사용할 vCenter Datastore를 Primary Storage로
+등록하는 화면이다.</p>
+<p>Zone, Pod, VMware Cluster, Datastore 정보를 입력하여, VMware
+Cluster에서 사용하는 vCenter Datastore를 Primary Storage로 등록한다.</p>
+<p>이 때, vCenter 데이터 센터와 vCenter 데이터 스토어는,
+vCenter에 구축된 이름과 일치해야한다.</p>
+</blockquote>
+<h3 id="import용-compute-offering-준비">Import용 Compute Offering
+준비</h3>
+<img src="/guide/html/images/tutorial/05_vmware_to_kvm_image8.png" style="width:9in" />
+
+<p>[그림 8] Compute Offering 생성 화면</p>
+<blockquote>
+<p>Import 후 생성될 KVM Instance에 적용할 Compute Offering을
+준비한다.</p>
+<p>VMWare에 옮길 대상인 Source VM의 CPU/Memory 구성을 확인한다.</p>
+<p>동일하거나 적절한 사양의 Compute Offering을 선택하거나 생성한다.</p>
+</blockquote>
+<h2 id="kvm-host에서-수행하는-변환-준비-작업">KVM Host에서 수행하는 변환
+준비 작업</h2>
+<blockquote>
+<p>이 구간은 Destination KVM Host에서 수행한다. VMware VM 디스크를
+KVM에서 사용할 수 있는 형식으로 변환하기 위한 도구를 준비한다.</p>
+</blockquote>
+<h3 id="변환-도구-설치">변환 도구 설치</h3>
+<blockquote>
+<p>VMware VM의 디스크 파일 형식(VMDK)은 KVM이 직접 사용할 수 없다. 변환
+도구가 이 파일을 KVM 형식으로 변환한다. 도구가 없으면 Import 작업이
+실패한다.</p>
+<p>KVM Host에서 실행한다(Ubuntu/Debian 계열 예시).</p>
+<p>$ apt update<br />
+$ apt install -y virt-v2v qemu-utils nbdkit</p>
+<p>패키지가 기본 저장소에 없는 경우 환경의 패키지 저장소 정책에 따라
+별도 파일을 준비한다.</p>
+<p>KVM Host가 vCenter에서 직접 OVF를 가져오는 방식이면 ovftool이 필요할
+수 있다.</p>
+<p>$ ovftool --version</p>
+<p>설치되어 있지 않으면 벤더 제공 설치 파일을 이용해 설치한다.</p>
+<p>도구 설치 후 Agent를 재시작한다.</p>
+<p>$ systemctl restart cloudstack-agent<br />
+$ systemctl status cloudstack-agent --no-pager -l</p>
+</blockquote>
+<h2 id="namuvirt-web-ui에서-수행하는-import-작업">namuVIRT Web UI에서
+수행하는 Import 작업</h2>
+<blockquote>
+<p>이 구간은 namuVIRT Web UI에서 수행한다. Source VM을 선택하고, KVM
+Instance로 생성될 때 사용할 이름, Offering, Network, Boot Mode를
+지정한다.</p>
+</blockquote>
+<h3 id="vmware-vm-import-실행">VMware VM Import 실행</h3>
+<blockquote>
+<p>namuVIRT Web UI에 관리자 계정으로 로그인한다.</p>
+<p><strong>Tools</strong> 또는 <strong>Import/Export Instances</strong>
+메뉴로 이동한다.</p>
+<p><strong>Instance Import</strong> 기능을 선택한다.</p>
+</blockquote>
+<h3 id="vmware-to-kvm-import-작업-진입-화면">VMware to KVM Import 작업
+진입 화면</h3>
+<blockquote>
+<p>Import 작업 진입 화면이다. Import 전에 대상 Zone, Cluster, Network,
+Offering 준비 상태를 확인한다.</p>
+</blockquote>
+<img src="/guide/html/images/tutorial/05_vmware_to_kvm_image9.png" style="width:10in" />
+
+<p>[그림 9] VMware to KVM Import 작업 진입 화면</p>
+<blockquote>
+<p>다음 항목을 선택한다.</p>
+<p>가져오기-내보내기 소스 하이퍼바이저는 VMware로, 목적지는 옮기고 싶은
+KVM Cluster로, Zone은 대상 Zone을 지정한 뒤, 인스턴스 목록을
+불러온다.</p>
+</blockquote>
+<h3 id="import-대상-vmware-vm-선택-화면">Import 대상 VMware VM 선택
+화면</h3>
+<img src="/guide/html/images/tutorial/05_vmware_to_kvm_image10.png" style="width:10in" />
+
+<p>[그림 10] Import 대상 VMware VM 선택 화면</p>
+<blockquote>
+<p>vCenter에서 조회된 VM 목록 중 KVM으로 가져올 Source VM을 선택하는
+화면이다.</p>
+<p>옮기고싶은 VM을 지정하여 인스턴스 가져오기를 실행한다.</p>
+<p>대상 VM이 표시되지 않으면 vCenter 연결 정보, 계정 권한, Datacenter
+이름, VM 전원 상태를 확인한다.</p>
+</blockquote>
+<img src="/guide/html/images/tutorial/05_vmware_to_kvm_image11.png" style="width:10in" />
+
+<p>[그림 11] VMware VM Import 상세 옵션 설정 화면</p>
+<blockquote>
+<p>Instance 이름, Service Offering, Network, Boot Mode 등 세부 옵션을
+설정하는 화면이다.</p>
+<p>Instance 정보를 입력한다.</p>
+<p>Instance Name에는 변환 후 namuVIRT에 표시될 이름, Service
+Offering에는 CPU/Memory 사양, Network에는 연결할 Guest Network를
+지정한다.</p>
+<p>Boot Mode은 Source VM의 BIOS/UEFI 설정과 일치하도록
+선택한다.</p>
+<p>입력값을 최종 확인하고 Import 버튼을 클릭한다.</p>
+</blockquote>
+<h3></h3>
+<h2 id="namuvirt-web-ui-및-guest-os에서-결과-확인">namuVIRT Web UI 및
+Guest OS에서 결과 확인</h2>
+<blockquote>
+<p>Import가 완료되면 namuVIRT Web UI에서 Instance 상태와 Hypervisor
+정보를 확인한다. 이후 Guest OS에 접속해 Disk, Network, Service 상태를
+확인한다.</p>
+</blockquote>
+<h3 id="web-ui-instance-상태-확인">Web UI Instance 상태 확인</h3>
+<blockquote>
+<p><strong>Compute → Instances</strong>로 이동한다.</p>
+<p>Import된 Instance를 선택한다.</p>
+<p>다음 항목을 확인한다.</p>
+<p>Hypervisor는 KVM이고, Root Disk는 생성됨, NIC는 대상 Network에
+연결됨, Instance 상태는 Stopped 또는 Running이어야 한다.</p>
+</blockquote>
+<h3 id="import-완료-후-kvm-instance-상세-화면">Import 완료 후 KVM
+Instance 상세 화면</h3>
+<img src="/guide/html/images/tutorial/05_vmware_to_kvm_image12.png" style="width:10in" />
+<p>[그림 12] Import 완료 후 KVM Instance 상세 화면</p>
+<blockquote>
+<p>Import 완료 후 생성된 KVM Instance의 상세 화면이다. Hypervisor가
+KVM으로 표시되고 Host, Network, Disk, Offering 정보가 의도한 값으로
+등록되었는지 확인한다.</p>
+</blockquote>
+<h3 id="instance-부팅-및-os-확인">Instance 부팅 및 OS 확인</h3>
+<blockquote>
+<p>Web UI에서 Import된 Instance를 Start하고 상태가 Running으로
+변경되는지 확인한다.</p>
+<p>Web UI에서 Console을 실행하고 OS 부팅 화면 또는 로그인 화면이
+표시되는지 확인한다.</p>
+</blockquote>
