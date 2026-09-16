@@ -7,6 +7,7 @@ Cluster 환경 구성 및 운영 시나리오</h1>
 <li><p>Kubernetes ISO 템플릿 등록</p></li>
 <li><p>Guest Network 생성(선택)</p></li>
 <li><p>Compute Offering 생성</p></li>
+<li><p>SSH Key Pairs 생성</p></li>
 <li><p>Kubernetes Cluster 생성</p></li>
 <li><p>Kubernetes 운영</p></li>
 </ol>
@@ -60,6 +61,44 @@ cloud.kubernetes.cluster.network.offering</strong> 에
 <p>Kubernetes Cluster를 구성하기 위한 Compute Offering을 구성한다. 이때
 Compute Offering의 CPU와 Memory의 사이즈는 Kubernetes ISO 템플릿에서
 지정한 CPU와 Memory 사이즈보다 커야 한다.</p>
+<h2 id="ssh-key-pairs-생성">SSH Key Pairs 생성</h2>
+<p>Kubernetes Cluster의 노드에 SSH로 접속하려면 SSH Key Pair가 필요하다. SSH Key Pair은 Kubernetes Cluster 생성 시점에만 지정할 수 있으며, 생성한 다음에는 추가할 수 없다.</p>
+<p>노드에는 관리 서버의 공개키가 항상 주입되지만 해당 개인키는 관리 서버에만 존재하여 사용자가 사용할 수 없다. 따라서 노드에 접속하려면 반드시 사용자 키 쌍을 미리 생성하고 Kubernetes Cluster 생성 시 지정해야 한다.</p>
+<ul>
+<li>Compute &gt; SSH 키 쌍(SSH Key Pairs)에서 SSH 키 쌍 생성</li>
+</ul>
+<img src="/guide/html/images/tutorial/03_kubernetes_cluster_image6.png" style="width:10in" />
+
+<p>입력 항목은 다음과 같다.</p>
+<table>
+<colgroup>
+<col style="width: 15%" />
+<col style="width: 85%" />
+</colgroup>
+<thead>
+<tr>
+<th><strong>구분</strong></th>
+<th><strong>설명</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Name</td>
+<td><p>SSH Key Pair의 이름이다.</p>
+<p>Kubernetes Cluster 생성 시 생성된 SSH Key Pair 이름으로 선택한다.</p></td>
+</tr>
+<tr>
+<td>Public Key</td>
+<td>Key Pair의 소유 범위를 지정한다.</td>
+</tr>
+<tr>
+<td>Domain</td>
+<td>기존에 사용하던 키를 등록하는 경우 입력한다. 비워 두면 새로운 Key Pair이 생성된다.</td>
+</tr>
+</tbody>
+</table>
+<p>* 주의사항 : 새로 생성하는 경우 개인키는 생성 직후 한 번만 화면에 표시된다. 반드시 파일로 저장해야 하며, 저장하지 못한 경우 키 쌍과 Kubernetes Cluster를 다시 생성해야 한다.</p>
+<img src="/guide/html/images/tutorial/03_kubernetes_cluster_image7.png" style="width:4in" />
 <h2 id="kubernetes-cluster-생성">Kubernetes Cluster 생성</h2>
 <p><img src="/guide/html/images/tutorial/03_kubernetes_cluster_image4.png" style="width:10in" /></p>
 <p>[그림 4] Kubernetes Cluster 생성 설정</p><br />
@@ -124,3 +163,89 @@ Offering을 다르게 지정할 수 있다.</p>
 </ol>
 <p><img src="/guide/html/images/tutorial/03_kubernetes_cluster_image5.png" style="width:6in" /></p>
 <p>[그림 5] kubeconfig 파일 다운로드</p>
+<h3 class="j-제목-3" id="노드-ssh-접속">노드 SSH 접속</h3>
+<p>노드 접속 방법은 Kubernetes Cluster가 사용하는 네트워크 유형에 따라 다르다.</p>
+<p>격리 네트워크와 VPC 티어의 경우 노드별 SSH 포트 포워딩 규칙과 방화벽 규칙이 자동으로 생성된다. 공유 네트워크는 노드에 직접 접근하므로 포트 포워딩 규칙이 생성되지 않는다.</p>
+<br />
+<p>1) 네크워크 유형별 접속 포트 설명</p>
+<table style="width:98%;">
+<colgroup>
+<col style="width: 24%" />
+<col style="width: 74%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;"><strong>네트워크 유형</strong></th>
+<th style="text-align: left;"><strong>접속 포트</strong> <strong>설명</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">공유(Shared) 네트워크</td>
+<td style="text-align: left;">각 노드의 IP로 직접 접속한다. 포트는 22를 사용한다.</td>
+</tr>
+<tr>
+<td style="text-align: left;">격리(Isolated) 네트워크</td>
+<td style="text-align: left;">소스 NAT 공인 IP로 접속한다. 포트는 2222부터 노드 순서대로 1씩 증가한다.</td>
+</tr>
+<tr>
+<td style="text-align: left;">VPC 티어</td>
+<td style="text-align: left;">티어에 할당된 공인 IP로 접속한다. 포트는 2222부터 노드 순서대로 1씩 증가한다.</td>
+</tr>
+</tbody>
+</table>
+<p>2) SSH 접속 정보</p>
+<table style="width:98%;">
+<colgroup>
+<col style="width: 23%" />
+<col style="width: 74%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;"><strong>구분</strong></th>
+<th style="text-align: left;"><strong>설명</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">접속 계정</td>
+<td style="text-align: left;">cloud 계정이 쿠버네티스 생성시 기본 계정명으로 생성</td>
+</tr>
+<tr>
+<td style="text-align: left;">개인키</td>
+<td style="text-align: left;">Kubernetes Cluster 생성 시 지정한 SSH 키 쌍의 개인키를 사용한다</td>
+</tr>
+</tbody>
+</table>
+<p>3) SSH 접속 명령어</p>
+<table>
+<colgroup>
+<col style="width: 30%" />
+<col style="width: 69%" />
+</colgroup>
+<thead>
+<tr>
+<th><strong>구분</strong></th>
+<th><strong>접속 형식</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>공유 네트워크</td>
+<td><ul>
+<li>ssh -i &lt;키파일&gt;.key cloud@&lt;노드 IP&gt;</li>
+</ul></td>
+</tr>
+<tr>
+<td>격리 네트워크 또는<br />
+VPC 티어의 접속 명령</td>
+<td><ul>
+<li>ssh -i &lt;키파일&gt;.key -p 2222 cloud@&lt;공인 IP&gt;</li>
+</ul></td>
+</tr>
+</tbody>
+</table>
+<p>* 주의 사항 : 자동으로 생성된 포트 포워딩 규칙 또는 방화벽 규칙을 삭제하면 노드에 접속할 수 없다.</p>
+<br />
+<p>4) SSH 키 쌍을 이용한 Master Node 접속(kubectl 연동) 예제</p>
+<img src="/guide/html/images/tutorial/03_kubernetes_cluster_image8.png" style="width:10in" />
