@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rocky 8 빌드 호스트 의존성 설치·검사.
+# Rocky 8/9 빌드 호스트 의존성 설치·검사.
 # ./build/rocky.sh 가 자동 호출하거나, 수동: sudo ./build/lib/deps-rocky.sh
 
 set -Eeuo pipefail
@@ -17,14 +17,23 @@ MAVEN_VERSION="${MAVEN_VERSION:-3.9.16}"
 MAVEN_INSTALL_DIR="${MAVEN_INSTALL_DIR:-/opt/apache-maven-${MAVEN_VERSION}}"
 MAVEN_LINK="${MAVEN_LINK:-/opt/maven}"
 
+# UI(webpack 4) 빌드용 Node 최소 major. Rocky 9 기본 nodejs 는 16 이라 모듈 스트림 전환 필요.
+NODE_MIN_MAJOR="${NODE_MIN_MAJOR:-18}"
+EL_MAJOR="$(el_major_version)"
+if [ "${EL_MAJOR}" = "9" ]; then
+  NODEJS_STREAM="${NODEJS_STREAM:-20}"
+else
+  NODEJS_STREAM="${NODEJS_STREAM:-18}"
+fi
+
 # --help 출력.
 usage() {
   cat <<USAGE
 Usage:
   ./build/lib/deps-rocky.sh [--check-only] [--dry-run]
 
-Installs Rocky 8 build tools for ./build/rocky.sh:
-  Java 17 JDK, rpm-build, nodejs, Maven ${MAVEN_VERSION} -> ${MAVEN_LINK}
+Installs Rocky 8/9 build tools for ./build/rocky.sh:
+  Java 17 JDK, rpm-build, nodejs:${NODEJS_STREAM} (>= ${NODE_MIN_MAJOR}), Maven ${MAVEN_VERSION} -> ${MAVEN_LINK}
 USAGE
 }
 
@@ -76,6 +85,11 @@ build_deps_missing() {
       printf '%s\n' "${tool}"
     }
   done
+
+  if command -v node >/dev/null 2>&1 && [ "$(node_major_version)" -lt "${NODE_MIN_MAJOR}" ]; then
+    ok_tools=0
+    printf '%s\n' "nodejs>=${NODE_MIN_MAJOR} (found $(node -v 2>/dev/null))"
+  fi
 
   if command -v mvn >/dev/null 2>&1; then
     local mvn_ver min_ok
@@ -139,11 +153,35 @@ EOF
   chmod 644 /etc/profile.d/namuvirt-java17.sh
 }
 
+# nodejs 모듈 스트림을 NODEJS_STREAM 으로 전환 (설치된 node 가 NODE_MIN_MAJOR 미만일 때).
+install_nodejs_stream() {
+  if [ "${DRY_RUN}" -eq 1 ]; then
+    log "dnf module enable nodejs:${NODEJS_STREAM} (if node < ${NODE_MIN_MAJOR})"
+    return 0
+  fi
+  if [ "$(node_major_version)" -ge "${NODE_MIN_MAJOR}" ]; then
+    log "nodejs $(node -v) already >= ${NODE_MIN_MAJOR}"
+    return 0
+  fi
+  run dnf -y module reset nodejs
+  run dnf -y module enable "nodejs:${NODEJS_STREAM}"
+  local installed=() pkg
+  for pkg in nodejs npm; do
+    rpm -q "${pkg}" >/dev/null 2>&1 && installed+=("${pkg}")
+  done
+  if [ "${#installed[@]}" -gt 0 ]; then
+    run dnf -y distro-sync "${installed[@]}"
+  fi
+}
+
 # dnf 로 rpmbuild·nodejs·gcc 등 RPM/UI 빌드 패키지 설치.
 install_build_packages() {
+  # Rocky 9 기본 저장소에는 genisoimage 가 없음 — xorriso 가 /usr/bin/mkisofs 제공.
+  local iso_pkg=genisoimage
+  [ "${EL_MAJOR}" = "9" ] && iso_pkg=xorriso
   local pkgs=(
     rpm-build rpm-sign nodejs npm python3 python3-setuptools
-    make gcc gcc-c++ glibc-devel genisoimage jpackage-utils
+    make gcc gcc-c++ glibc-devel "${iso_pkg}" jpackage-utils
     wget curl tar patch which jq
   )
   if [ "${DRY_RUN}" -eq 1 ]; then
@@ -240,6 +278,7 @@ fi
 install_java17_devel
 configure_java17_alternatives
 write_java_home_profile
+install_nodejs_stream
 install_build_packages
 install_maven
 write_maven_profile

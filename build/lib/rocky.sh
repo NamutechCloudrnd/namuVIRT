@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rocky 8 EL8 RPM 빌드 본체. 엔트리: ./build/rocky.sh
+# Rocky 8/9 (EL8 spec) RPM 빌드 본체. 엔트리: ./build/rocky.sh
 # packaging/package.sh 호출 → build/packages/rpm/latest/ 수집.
 
 set -Eeuo pipefail
@@ -15,6 +15,9 @@ source "${LIB_DIR}/common.sh"
 RPM_DIST="${RPM_DIST:-el8}"
 UI_NODE_HEAP_MB="${NODE_MAX_OLD_SPACE_SIZE:-16384}"
 UI_NODE_PATH="/usr/bin:/bin:/usr/sbin:/sbin"
+UI_NODE_MIN_MAJOR=18
+# OpenSSL 3 (Rocky 9) 에서 webpack 4 md4 해시용으로 detect_ui_node_openssl_option 이 채움.
+UI_NODE_EXTRA_OPTS=""
 OUT_DIR="${BUILD_DIR}/packages/rpm/latest"
 PACKAGE_PACK="oss"
 
@@ -29,7 +32,7 @@ Output: build/packages/rpm/latest/
 
 Never runs git checkout, git reset, or git clean.
 Every run: install missing host deps → full package build → fresh output under build/packages/.
-Missing Java 17 / rpmbuild / Maven on Rocky 8: auto-install via build/lib/deps-rocky.sh
+Missing Java 17 / rpmbuild / Maven / nodejs>=18 on Rocky 8/9: auto-install via build/lib/deps-rocky.sh
   (disable with --no-auto-deps or SKIP_ENSURE_BUILD_DEPS=1; sudo may be used).
 
 Environment:
@@ -77,6 +80,25 @@ verify_rpm_build_tools() {
   command -v make >/dev/null 2>&1 || die "make not found"
   command -v g++ >/dev/null 2>&1 || die "g++ not found"
   log "ui build node: /usr/bin/node $(/usr/bin/node -v 2>/dev/null || echo unknown)"
+  [ "$(node_major_version /usr/bin/node)" -ge "${UI_NODE_MIN_MAJOR}" ] \
+    || die "/usr/bin/node $(/usr/bin/node -v) is too old; need >= ${UI_NODE_MIN_MAJOR} (run sudo ./build/lib/deps-rocky.sh)"
+  detect_ui_node_openssl_option
+}
+
+# webpack 4 는 md4 해시를 쓰는데 OpenSSL 3 (Rocky 9) 은 기본 차단 → --openssl-legacy-provider 필요 여부 판단.
+# mvn 빌드(수십 분) 전에 확인해 UI 단계에서 늦게 실패하지 않게 한다.
+detect_ui_node_openssl_option() {
+  local md4_js='require("crypto").createHash("md4")'
+  UI_NODE_EXTRA_OPTS=""
+  if /usr/bin/node -e "${md4_js}" >/dev/null 2>&1; then
+    return 0
+  fi
+  if /usr/bin/node --openssl-legacy-provider -e "${md4_js}" >/dev/null 2>&1; then
+    UI_NODE_EXTRA_OPTS="--openssl-legacy-provider"
+    log "ui build node: OpenSSL 3 md4 disabled — NODE_OPTIONS += ${UI_NODE_EXTRA_OPTS}"
+    return 0
+  fi
+  die "/usr/bin/node cannot create md4 hash (needed by webpack 4), even with --openssl-legacy-provider"
 }
 
 # noredist/oss·빌드 모드에 따른 package.sh --pack 값 결정.
@@ -96,7 +118,8 @@ configure_build_options() {
 
 # cloud.spec %build 에 넣을 UI npm 한 줄 생성 (heap·PATH 고정).
 cloud_spec_ui_npm_cmd() {
-  printf '%s' "cd ui && unset NODE_OPTIONS npm_config_node_options && PATH=${UI_NODE_PATH}:\$PATH npm install && PATH=${UI_NODE_PATH}:\$PATH NODE_OPTIONS=--max-old-space-size=${UI_NODE_HEAP_MB} npm run build && cd .."
+  local node_opts="--max-old-space-size=${UI_NODE_HEAP_MB}${UI_NODE_EXTRA_OPTS:+ ${UI_NODE_EXTRA_OPTS}}"
+  printf '%s' "cd ui && unset NODE_OPTIONS npm_config_node_options && PATH=${UI_NODE_PATH}:\$PATH npm install && PATH=${UI_NODE_PATH}:\$PATH NODE_OPTIONS='${node_opts}' npm run build && cd .."
 }
 
 CLOUD_SPEC=""
