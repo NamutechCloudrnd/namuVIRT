@@ -289,6 +289,8 @@ write_build_metadata() {
     printf 'mode=%s\n' "${MODE}"
     printf 'with_vmware=%s\n' "${WITH_VMWARE}"
     printf 'package_format=%s\n' "${format}"
+    [ -n "${RPM_DIST:-}" ] && printf 'rpm_dist=%s\n' "${RPM_DIST}"
+    printf 'build_os=%s\n' "$( [ -r /etc/os-release ] && . /etc/os-release && printf '%s' "${PRETTY_NAME:-unknown}" || printf unknown)"
     printf 'repo_dir=%s\n' "${REPO_DIR}"
     printf 'built_at=%s\n' "$(date -Is)"
   } > "${OUT_DIR}/BUILD_INFO.txt"
