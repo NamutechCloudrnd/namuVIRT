@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Rocky 8 EL8 RPM 빌드 본체. 엔트리: ./build/rocky.sh
-# packaging/package.sh 호출 → build/packages/rpm/latest/ 수집.
+# Rocky 8/9 RPM 빌드 본체. 엔트리: ./build/rocky.sh
+# packaging/package.sh 호출 → build/packages/rpm/<el8|el9>/latest/ 수집.
 
 set -Eeuo pipefail
 
@@ -12,10 +12,18 @@ LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${LIB_DIR}/common.sh"
 
-RPM_DIST="${RPM_DIST:-el8}"
+# 빌드 호스트 OS 로 기본 dist 결정 (Rocky 9 → el9, 그 외 el8). packaging/el9 는 el8 심볼릭 링크.
+if [ "$(el_major_version)" = "9" ]; then
+  RPM_DIST="${RPM_DIST:-el9}"
+else
+  RPM_DIST="${RPM_DIST:-el8}"
+fi
 UI_NODE_HEAP_MB="${NODE_MAX_OLD_SPACE_SIZE:-16384}"
 UI_NODE_PATH="/usr/bin:/bin:/usr/sbin:/sbin"
-OUT_DIR="${BUILD_DIR}/packages/rpm/latest"
+UI_NODE_MIN_MAJOR=18
+# OpenSSL 3 (Rocky 9) 에서 webpack 4 md4 해시용으로 detect_ui_node_openssl_option 이 채움.
+UI_NODE_EXTRA_OPTS=""
+OUT_DIR="${BUILD_DIR}/packages/rpm/${RPM_DIST}/latest"
 PACKAGE_PACK="oss"
 
 # --help 출력.
@@ -24,17 +32,17 @@ usage() {
 Usage:
   ./build/rocky.sh [--mode normal|dev|clean] [--without-vmware] [--no-auto-deps] [--dry-run]
 
-Builds the current namuVIRT tree as EL8 RPMs via packaging/package.sh.
-Output: build/packages/rpm/latest/
+Builds the current namuVIRT tree as EL8/EL9 RPMs via packaging/package.sh.
+Output: build/packages/rpm/<el8|el9>/latest/
 
 Never runs git checkout, git reset, or git clean.
 Every run: install missing host deps → full package build → fresh output under build/packages/.
-Missing Java 17 / rpmbuild / Maven on Rocky 8: auto-install via build/lib/deps-rocky.sh
+Missing Java 17 / rpmbuild / Maven / nodejs>=18 on Rocky 8/9: auto-install via build/lib/deps-rocky.sh
   (disable with --no-auto-deps or SKIP_ENSURE_BUILD_DEPS=1; sudo may be used).
 
 Environment:
   NON_OSS_DIR              default: vendor/cloudstack-nonoss
-  RPM_DIST                 default: el8
+  RPM_DIST                 default: el9 on Rocky 9, otherwise el8
   NODE_MAX_OLD_SPACE_SIZE  UI npm heap MiB (default: 16384)
 USAGE
 }
@@ -77,6 +85,25 @@ verify_rpm_build_tools() {
   command -v make >/dev/null 2>&1 || die "make not found"
   command -v g++ >/dev/null 2>&1 || die "g++ not found"
   log "ui build node: /usr/bin/node $(/usr/bin/node -v 2>/dev/null || echo unknown)"
+  [ "$(node_major_version /usr/bin/node)" -ge "${UI_NODE_MIN_MAJOR}" ] \
+    || die "/usr/bin/node $(/usr/bin/node -v) is too old; need >= ${UI_NODE_MIN_MAJOR} (run sudo ./build/lib/deps-rocky.sh)"
+  detect_ui_node_openssl_option
+}
+
+# webpack 4 는 md4 해시를 쓰는데 OpenSSL 3 (Rocky 9) 은 기본 차단 → --openssl-legacy-provider 필요 여부 판단.
+# mvn 빌드(수십 분) 전에 확인해 UI 단계에서 늦게 실패하지 않게 한다.
+detect_ui_node_openssl_option() {
+  local md4_js='require("crypto").createHash("md4")'
+  UI_NODE_EXTRA_OPTS=""
+  if /usr/bin/node -e "${md4_js}" >/dev/null 2>&1; then
+    return 0
+  fi
+  if /usr/bin/node --openssl-legacy-provider -e "${md4_js}" >/dev/null 2>&1; then
+    UI_NODE_EXTRA_OPTS="--openssl-legacy-provider"
+    log "ui build node: OpenSSL 3 md4 disabled — NODE_OPTIONS += ${UI_NODE_EXTRA_OPTS}"
+    return 0
+  fi
+  die "/usr/bin/node cannot create md4 hash (needed by webpack 4), even with --openssl-legacy-provider"
 }
 
 # noredist/oss·빌드 모드에 따른 package.sh --pack 값 결정.
@@ -96,7 +123,8 @@ configure_build_options() {
 
 # cloud.spec %build 에 넣을 UI npm 한 줄 생성 (heap·PATH 고정).
 cloud_spec_ui_npm_cmd() {
-  printf '%s' "cd ui && unset NODE_OPTIONS npm_config_node_options && PATH=${UI_NODE_PATH}:\$PATH npm install && PATH=${UI_NODE_PATH}:\$PATH NODE_OPTIONS=--max-old-space-size=${UI_NODE_HEAP_MB} npm run build && cd .."
+  local node_opts="--max-old-space-size=${UI_NODE_HEAP_MB}${UI_NODE_EXTRA_OPTS:+ ${UI_NODE_EXTRA_OPTS}}"
+  printf '%s' "cd ui && unset NODE_OPTIONS npm_config_node_options && PATH=${UI_NODE_PATH}:\$PATH npm install && PATH=${UI_NODE_PATH}:\$PATH NODE_OPTIONS='${node_opts}' npm run build && cd .."
 }
 
 CLOUD_SPEC=""
@@ -107,6 +135,8 @@ patch_cloud_spec_for_build() {
   [ "${DRY_RUN}" -eq 1 ] && return 0
   CLOUD_SPEC="${REPO_DIR}/packaging/${RPM_DIST}/cloud.spec"
   [ -f "${CLOUD_SPEC}" ] || die "cloud.spec not found: ${CLOUD_SPEC}"
+  # el9 → el8 심볼릭 링크를 실제 경로로 풀어 백업/원복 대상을 명확히 한다.
+  CLOUD_SPEC="$(readlink -f "${CLOUD_SPEC}")"
   CLOUD_SPEC_BAK="$(mktemp)"
   cp -a "${CLOUD_SPEC}" "${CLOUD_SPEC_BAK}"
   local ui_cmd ui_safe
@@ -137,7 +167,7 @@ find_built_rpm() {
   find "${REPO_DIR}/dist/rpmbuild/RPMS" -maxdepth 2 -type f -name "$1-*.rpm" 2>/dev/null | sort | tail -1
 }
 
-# 빌드된 RPM을 build/packages/rpm/latest/ 로 복사.
+# 빌드된 RPM을 build/packages/rpm/<dist>/latest/ 로 복사.
 collect_runtime_packages() {
   local pkg rpm
   for pkg in "${RUNTIME_PKGS[@]}"; do

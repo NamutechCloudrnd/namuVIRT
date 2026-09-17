@@ -518,6 +518,12 @@
       "label": "VPN 구성",
       "icon": "fa-globe",
       "path": "tutorial/09_vpn.html"
+    },
+    {
+      "id": "tutorial_10_drs",
+      "label": "DRS 설정",
+      "icon": "fa-microchip",
+      "path": "tutorial/10_drs.html"
     }
   ]
 }

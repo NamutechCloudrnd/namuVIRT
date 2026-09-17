@@ -1,20 +1,22 @@
-# Rocky 8.10 RPM 빌더 이미지. 빌드 컨텍스트는 build/ 디렉터리.
+# Rocky 8/9 RPM 빌더 이미지. 빌드 컨텍스트는 build/ 디렉터리.
 #   docker build -f build/docker/Dockerfile -t namuvirt-build-rocky8 build/
+#   docker build -f build/docker/Dockerfile --build-arg ROCKY_VERSION=9 -t namuvirt-build-rocky9 build/
+# 실행: 레포를 /src 에 마운트, 산출물은 /out/<el8|el9>/latest/
+#   docker run --rm -v "$PWD":/src:ro -v "$PWD/build/packages/rpm":/out namuvirt-build-rocky9
 # 빌드 의존성은 build/lib/deps-rocky.sh 로 이미지에 미리 굽는다.
-FROM rockylinux/rockylinux:8.10
+ARG ROCKY_VERSION=8.10
+FROM rockylinux/rockylinux:${ROCKY_VERSION}
 
-# Rocky 8 기본 nodejs 모듈 스트림은 10 — CloudStack UI 빌드에 너무 낮다.
-# deps-rocky.sh 의 `dnf install nodejs` 보다 먼저 스트림을 올려 둔다.
-ARG NODEJS_STREAM=18
-RUN dnf -y module reset nodejs \
-  && dnf -y module enable "nodejs:${NODEJS_STREAM}" \
-  && dnf -y install git rsync tar findutils diffutils procps-ng ca-certificates \
+RUN dnf -y install git rsync tar findutils diffutils procps-ng ca-certificates \
   && dnf clean all
 
 # 빌드 도구(Java 17, rpmbuild, Node, Maven /opt/maven) 설치.
+# nodejs 모듈 스트림은 deps-rocky.sh 가 OS 버전별로 선택 (Rocky 8: 18, Rocky 9: 20). 비우면 기본값.
+ARG NODEJS_STREAM=
 COPY lib/ /opt/namuvirt-build/lib/
 RUN NAMUVIRT_BUILD_DIR=/opt/namuvirt-build \
     NAMUVIRT_REPO_ROOT=/opt/namuvirt-build \
+    NODEJS_STREAM="${NODEJS_STREAM}" \
     bash /opt/namuvirt-build/lib/deps-rocky.sh \
   && dnf clean all
 
