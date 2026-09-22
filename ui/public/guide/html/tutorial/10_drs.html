@@ -1,0 +1,339 @@
+<h1 id="drsdistributed-resource-scheduler-설정">DRS(Distributed Resource Scheduler) 설정</h1>
+</header>
+<p>DRS(Distributed Resource Scheduler)는 클러스터 내 호스트 간 자원 불균형을 감지하고, 인스턴스를 Live Migration하여 전체 자원 배치를 최적화하는 기능입니다. 인스턴스의 생성 및 규모 변경 등으로 발생하는 부하 집중을 정해진 알고리즘과 임계값에 따라 자동 해소하여 관리자의 수동 개입 부담을 줄여줍니다.</p>
+<p>단, DRS는 기존 Live Migration 기능을 활용해 단일 클러스터 내에서만 동작하며, 다른 클러스터 간의 인스턴스 재배치는 수행하지 않습니다.</p>
+<p>참고: DRS 기능은 기본적으로 비활성화되어 있으며, 작동 및 검증을 위해서는 동일한 클러스터 내에 2개 이상의 호스트가 필요합니다.</p>
+<h2 class="j-제목-3" id="사전-조건">사전 조건</h2>
+<p>DRS를 적용하기 전에 다음 조건을 확인한다.</p>
+<ul>
+<li><p>동일한 Cluster 내에 <strong>두 개 이상의 Host</strong>가 Up 상태로 존재해야 한다.</p></li>
+<li><p>대상 Instance가 <strong>Live Migration이 가능한 상태</strong>여야 한다. 일반적으로 iSCSI 또는 NFS와 같은 Shared Storage 환경이 필요하며, Local Storage를 사용하는 Instance는 재배치 대상에서 제외될 수 있다.</p></li>
+<li><p>이동 대상 Host가 Instance의 CPU/Memory 요구량을 수용할 수 있는 가용 용량을 가지고 있어야 한다.</p></li>
+<li><p>Affinity Group, Host Tag 등 배치 제약이 설정된 Instance는 해당 제약을 만족하는 Host로만 이동한다.</p></li>
+</ul>
+<p>DRS는 현재 Instance 배치 상태와 Affinity Group을 기준으로 계획을 생성하며, Instance 최초 배치에 사용되는 Allocation Algorithm 또는 Deployment Planner 설정과는 별개로 동작한다. 최초 배치 정책은 아래 <strong>Allocation Algorithm</strong> 항목을 참고한다.</p>
+<h2 class="j-제목-3" id="drs-알고리즘">DRS 알고리즘</h2>
+<p>namuVIRT는 두 가지 DRS 알고리즘을 제공하며, Cluster 단위로 선택할 수 있다.</p>
+<table style="width:99%;">
+<caption>표 ‑ DRS 알고리즘 별 동작 및 용도</caption>
+<colgroup>
+<col style="width: 8%" />
+<col style="width: 20%" />
+<col style="width: 69%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: center;"><strong>알고리즘</strong></th>
+<th style="text-align: left;"><strong>동작</strong></th>
+<th style="text-align: left;"><strong>용도</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: center;">balanced (기본값)</td>
+<td style="text-align: left;">Instance를 여러 Host에 고르게 분산한다.</td>
+<td style="text-align: left;">특정 Host 장애 시 영향 범위를 줄이고 자원 경합을 완화해야 하는 운영 환경에 적합하다. 모든 Host가 가동 상태를 유지하므로 전력 소모는 상대적으로 크다.</td>
+</tr>
+<tr>
+<td style="text-align: center;">condensed</td>
+<td style="text-align: left;">Instance를 최소한의 Host에 모아서 배치한다.</td>
+<td style="text-align: left;">유휴 Host를 만들어 전력과 냉각 비용을 줄이는 것이 목적이다. 하나의 Host에 Instance가 집중되어 자원 경합이 발생할 수 있으므로 운영 환경에는 권장하지 않는다.</td>
+</tr>
+</tbody>
+</table>
+<h2 class="j-제목-3" id="불균형imbalance-판단-기준">불균형(Imbalance) 판단 기준</h2>
+<p>DRS는 Cluster 내 Host들의 Metric 값에 대한 <strong>표준편차를 평균으로 나눈 값</strong>을 불균형(Imbalance) 지표로 사용한다. 값이 0에 가까울수록 Host 간 자원 사용이 균등한 상태이다.</p>
+<p>이 값과 <strong>drs.imbalance</strong> 설정값을 비교하여 DRS 수행 여부를 판단하며, 알고리즘에 따라 비교 기준이 다르다.</p>
+<ul>
+<li><p><strong>balanced</strong> : 임계값은 1.0 - drs.imbalance이며, 계산된 불균형 값이 이 임계값보다 <strong>크면</strong> DRS를 수행한다. 기본값 0.4인 경우 임계값은 0.6이 된다.</p></li>
+<li><p><strong>condensed</strong> : 임계값은 drs.imbalance 값 자체이며, 계산된 불균형 값이 이 임계값보다 <strong>작으면</strong> DRS를 수행한다.</p></li>
+</ul>
+<p>따라서 두 알고리즘 모두 <strong>drs.imbalance 값이 클수록 DRS가 더 적극적으로 동작</strong>한다. 1.0은 불균형을 허용하지 않는다는 의미이고, 0.0은 불균형을 모두 허용한다는 의미이다.</p>
+<p>불균형 계산에 사용할 지표는 <strong>drs.metric</strong>(cpu 또는 memory)과 <strong>drs.metric.type</strong>(used 또는 free)으로 지정하며, Host별 용량이 서로 다른 Cluster에서는 <strong>drs.metric.use.ratio</strong>를 활성화하여 절대값이 아닌 비율로 계산하도록 한다.</p>
+<h2 class="j-제목-3" id="drs-설정">DRS 설정</h2>
+<p>DRS 관련 설정은 전역(Global) 또는 Cluster 단위로 지정할 수 있다. 대부분의 설정이 Cluster Scope를 지원하므로, 운영 환경에서는 Cluster별로 값을 조정하는 것을 권장한다.</p>
+<h2 class="j-제목-3" id="전역-설정-확인">전역 설정 확인</h2>
+<ul>
+<li><strong>구성(Configuration) &gt; 글로벌 설정(Global Settings)</strong>에서 <strong>drs</strong>로 검색하여 전체 DRS 설정값을 확인한다.</li>
+</ul>
+<img src="/guide/html/images/tutorial/10_drs_image1.png" style="width:10in" />
+
+<p>[그림 1] 글로벌 설정에서 DRS 설정 조회</p>
+<br />
+
+<h2 class="j-제목-3" id="cluster-단위-설정">Cluster 단위 설정</h2>
+<ul>
+<li><strong>인프라(Infrastructure) &gt; 클러스터(Clusters) &gt; 클러스터 상세 &gt; 설정(Settings)</strong> 탭에서 해당 Cluster에만 적용되는 DRS 설정값을 지정한다.</li>
+</ul>
+<img src="/guide/html/images/tutorial/10_drs_image2.png" style="width:10in" />
+
+<p>[그림 2] 클러스터 설정 탭에서 DRS 설정 변경</p>
+<br />
+
+<h2 class="j-제목-3" id="설정-항목">설정 항목</h2>
+<table style="width:99%;">
+<caption>표 ‑ DRS 설정 항목</caption>
+<colgroup>
+<col style="width: 17%" />
+<col style="width: 5%" />
+<col style="width: 75%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: center;"><strong>설정명</strong></th>
+<th style="text-align: left;"><strong>기본값</strong></th>
+<th style="text-align: left;"><strong>설명</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: center;">drs.automatic.enable</td>
+<td style="text-align: left;">false</td>
+<td style="text-align: left;">Cluster에 대한 자동 DRS 사용 여부를 지정한다.</td>
+</tr>
+<tr>
+<td style="text-align: center;">drs.automatic.interval</td>
+<td style="text-align: left;">60</td>
+<td style="text-align: left;">자동 DRS를 수행하는 주기(분)를 지정한다.</td>
+</tr>
+<tr>
+<td style="text-align: center;">drs.algorithm</td>
+<td style="text-align: left;">balanced</td>
+<td style="text-align: left;">Cluster에 적용할 DRS 알고리즘을 지정한다. (condensed, balanced)</td>
+</tr>
+<tr>
+<td style="text-align: center;">drs.imbalance</td>
+<td style="text-align: left;">0.4</td>
+<td style="text-align: left;">Cluster에서 허용할 불균형 수준을 지정한다. 1.0은 불균형을 허용하지 않고 0.0은 불균형을 모두 허용한다.</td>
+</tr>
+<tr>
+<td style="text-align: center;">drs.metric</td>
+<td style="text-align: left;">memory</td>
+<td style="text-align: left;">불균형 판단에 사용할 자원 지표를 지정한다. (memory, cpu)</td>
+</tr>
+<tr>
+<td style="text-align: center;">drs.metric.type</td>
+<td style="text-align: left;">used</td>
+<td style="text-align: left;">불균형 판단에 사용할 지표 유형을 지정한다. 값에 따라 불균형 계산 결과가 크게 달라질 수 있다. (free, used)</td>
+</tr>
+<tr>
+<td style="text-align: center;">drs.metric.use.ratio</td>
+<td style="text-align: left;">true</td>
+<td style="text-align: left;">선택한 지표를 전체 용량 대비 비율로 계산할지 여부를 지정한다. Host 용량이 서로 다른 Cluster에서 유용하다.</td>
+</tr>
+<tr>
+<td style="text-align: center;">drs.imbalance.condensed.skip.threshold</td>
+<td style="text-align: left;">0.95</td>
+<td style="text-align: left;">condensed 알고리즘에서 불균형 계산 시 특정 Host의 지표를 제외할 임계값을 지정한다. drs.metric.type이 'free'이면 낮은 값을, 'used'이면 높은 값을 설정한다. (0.0 ~ 1.0)</td>
+</tr>
+<tr>
+<td style="text-align: center;">drs.max.migrations</td>
+<td style="text-align: left;">50</td>
+<td style="text-align: left;">DRS 1회 실행에서 허용되는 최대 Live Migration 수를 지정한다.</td>
+</tr>
+<tr>
+<td style="text-align: center;">drs.plan.expire.interval</td>
+<td style="text-align: left;">30</td>
+<td style="text-align: left;">오래된 DRS Plan 및 Event를 정리하는 주기(일)를 지정한다. 전역 설정으로만 지정할 수 있다.</td>
+</tr>
+</tbody>
+</table>
+<h2 class="j-제목-3" id="수동-drs-실행">수동 DRS 실행</h2>
+<p>자동 DRS를 활성화하기 전에 현재 Cluster 상태에서 어떤 재배치가 발생하는지 확인하려면 DRS 계획을 수동으로 생성하여 검토할 수 있다.</p>
+<h2 class="j-제목-3" id="drs-계획-생성">DRS 계획 생성</h2>
+<ol type="1">
+<li><p><strong>인프라(Infrastructure) &gt; 클러스터(Clusters)</strong>에서 대상 Cluster를 선택하고 <strong>DRS</strong> 탭으로 이동한다.</p></li>
+<li><p>현재 적용된 <strong>알고리즘(Algorithm)</strong> 값을 확인한다. 이 값은 해당 Cluster의 drs.algorithm 설정을 표시한다.</p></li>
+<li><p><strong>최대 마이그레이션(Max. migrations)</strong>에 이번 계획에서 허용할 최대 Live Migration 수를 입력한다. 기본값은 해당 Cluster의 drs.max.migrations 설정값이다.</p></li>
+<li><p><strong>DRS 계획 생성(Generate DRS plan)</strong> 버튼을 클릭한다.</p></li>
+</ol>
+<img src="/guide/html/images/tutorial/10_drs_image3.png" style="width:10in" />
+
+<p>[그림 3] 클러스터 DRS 탭 화면</p>
+<br />
+
+<h2 class="j-제목-3" id="생성된-계획-확인-및-실행">생성된 계획 확인 및 실행</h2>
+<p>계획이 생성되면 팝업 화면에 재배치 대상 목록이 표시된다. 각 항목은 <strong>VM</strong>, <strong>소스 호스트(Source host)</strong>, <strong>목적지 호스트(Destination host)</strong>로 구성되며, 어떤 Instance가 어느 Host로 이동하는지 확인할 수 있다.</p>
+<p>내용을 검토한 후 <strong>Execute</strong> 버튼을 클릭하면 실제 Live Migration이 수행된다. 실행하지 않고 <strong>취소(Cancel)</strong>를 선택하면 계획만 확인하고 종료할 수 있다.</p>
+<img src="/guide/html/images/tutorial/10_drs_image4.png" style="width:10in" />
+
+<p>[그림 4] 생성된 DRS 계획 확인</p>
+<br />
+
+<p>현재 Cluster가 설정된 임계값 기준으로 불균형 상태가 아닌 경우에는 계획이 생성되지 않으며, 다음과 같은 안내 문구가 표시된다.</p>
+<img src="/guide/html/images/tutorial/10_drs_image5.png" style="width:10in" />
+
+<p>[그림 5] 불균형 상태가 아니어서 DRS 계획이 생성되지 않은 경우</p>
+<br />
+
+<p>* 참고 : 운영 Instance가 포함된 환경에서는 계획을 실행하기 전에 대상 Host의 가용 용량과 Storage, Network 연결 조건을 함께 검토해야 한다.</p>
+<h2 class="j-제목-3" id="자동-drs-활성화">자동 DRS 활성화</h2>
+<p>수동 실행 결과를 통해 알고리즘과 임계값이 의도한 대로 동작하는 것을 확인한 후 자동 DRS를 활성화한다.</p>
+<ul>
+<li><p><strong>인프라(Infrastructure) &gt; 클러스터(Clusters) &gt; 클러스터 상세 &gt; 설정(Settings)</strong> 탭에서 <strong>drs.automatic.enable</strong> 값을 <strong>true</strong>로 변경한다.</p></li>
+<li><p><strong>drs.automatic.interval</strong>에 자동 DRS 수행 주기(분)를 지정한다.</p></li>
+</ul>
+<img src="/guide/html/images/tutorial/10_drs_image6.png" style="width:10in" />
+
+<p>[그림 6] 자동 DRS 활성화</p>
+<br />
+
+<p>설정이 적용되면 지정한 주기마다 백그라운드 작업이 해당 Cluster의 불균형 상태를 확인하고, 임계값을 초과하는 경우 DRS 계획을 생성하여 자동으로 실행한다. 이때에도 1회 실행 시 수행되는 Live Migration 수는 drs.max.migrations 값으로 제한된다.</p>
+<h2 class="j-제목-3" id="실행-결과-확인">실행 결과 확인</h2>
+<p>DRS 실행 이력은 클러스터 상세 화면의 <strong>DRS</strong> 탭 하단 목록에서 확인할 수 있다.</p>
+<table style="width:99%;">
+<caption>표 ‑ DRS 실행 이력 항목</caption>
+<colgroup>
+<col style="width: 30%" />
+<col style="width: 67%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: center;"><strong>항목</strong></th>
+<th style="text-align: left;"><strong>설명</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: center;">유형(Type)</td>
+<td style="text-align: left;">DRS 계획의 생성 유형을 표시한다. 수동 실행(MANUAL)과 자동 실행(AUTOMATED)을 구분할 수 있다.</td>
+</tr>
+<tr>
+<td style="text-align: center;">마이그레이션 성공(Successful migrations)</td>
+<td style="text-align: left;">전체 Migration 수 대비 성공한 Migration 수를 표시한다.</td>
+</tr>
+<tr>
+<td style="text-align: center;">상태(Status)</td>
+<td style="text-align: left;">DRS 계획의 진행 상태를 표시한다.</td>
+</tr>
+<tr>
+<td style="text-align: center;">생성일(Created)</td>
+<td style="text-align: left;">DRS 계획이 생성된 시각을 표시한다.</td>
+</tr>
+<tr>
+<td style="text-align: center;">이벤트(Events)</td>
+<td style="text-align: left;">해당 DRS 작업과 관련된 이벤트 목록으로 이동한다.</td>
+</tr>
+</tbody>
+</table>
+<p>각 행을 펼치면 Instance별 <strong>VM</strong>, <strong>소스 호스트(Source host)</strong>, <strong>목적지 호스트(Destination host)</strong>, <strong>상태(Status)</strong> 정보를 확인할 수 있어 개별 Migration의 성공 여부를 판단할 수 있다.</p>
+<img src="/guide/html/images/tutorial/10_drs_image7.png" style="width:10in" />
+
+<p>[그림 7] DRS 실행 이력 및 Migration 상세 확인</p>
+<br />
+
+<p>DRS 계획 생성과 실행 이력은 클러스터 상세 화면의 <strong>이벤트(Events)</strong> 탭에서도 확인할 수 있다. Migration이 실패한 경우 이벤트의 레벨(Level), 유형(Type), 상태(State)와 발생 시각을 확인하여 원인을 파악한다.</p>
+<img src="/guide/html/images/tutorial/10_drs_image8.png" style="width:10in" />
+
+<p>[그림 8] 이벤트 탭에서 DRS 이벤트 확인</p>
+<br />
+
+<h2 class="j-제목-3" id="allocation-algorithm">Allocation Algorithm</h2>
+<p>DRS가 <strong>이미 실행 중인 Instance의 재배치</strong>를 담당한다면, Allocation Algorithm은 <strong>Instance와 Volume을 최초로 배치</strong>할 때 어떤 Host와 Storage Pool을 선택할지 결정한다. 두 기능은 서로 독립적으로 동작하지만, 최초 배치 정책이 DRS 알고리즘과 상반되면 재배치가 반복적으로 발생할 수 있으므로 함께 검토하는 것이 좋다.</p>
+<p>Instance 배치는 다음 순서로 진행된다.</p>
+<ol type="1">
+<li><p><strong>Deployment Planner</strong>가 배치 가능한 Pod와 Cluster 목록을 선정한다.</p></li>
+<li><p><strong>Host Allocator</strong>가 선정된 Cluster 내에서 CPU, Memory 용량과 Host 상태를 확인하여 Host를 선택한다.</p></li>
+<li><p><strong>Storage Pool Allocator</strong>가 Disk Offering, 용량, Storage 제공 범위를 확인하여 Volume이 생성될 Storage Pool을 선택한다.</p></li>
+</ol>
+<h2 class="j-제목-3" id="allocation-algorithm-설정-항목">Allocation Algorithm 설정 항목</h2>
+<ul>
+<li><strong>구성(Configuration) &gt; 글로벌 설정(Global Settings)</strong>에서 <strong>allocation.algorithm</strong> 또는 <strong>deployment.planner</strong>로 검색하여 설정한다.</li>
+</ul>
+<img src="/guide/html/images/tutorial/10_drs_image9.png" style="width:10in" />
+
+<p>[그림 9] 글로벌 설정에서 Allocation Algorithm 설정</p>
+<br />
+
+<table style="width:99%;">
+<caption>표 ‑ Allocation Algorithm 설정 항목</caption>
+<colgroup>
+<col style="width: 27%" />
+<col style="width: 8%" />
+<col style="width: 62%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: center;"><strong>설정명</strong></th>
+<th style="text-align: left;"><strong>기본값</strong></th>
+<th style="text-align: left;"><strong>설명</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: center;">vm.allocation.algorithm</td>
+<td style="text-align: left;">random</td>
+<td style="text-align: left;">Cluster 내에서 Instance 배치 대상 Host를 선택하는 순서를 지정한다.</td>
+</tr>
+<tr>
+<td style="text-align: center;">volume.allocation.algorithm</td>
+<td style="text-align: left;">random</td>
+<td style="text-align: left;">Cluster 내에서 Volume 배치 대상 Storage Pool을 선택하는 순서를 지정한다.</td>
+</tr>
+<tr>
+<td style="text-align: center;">vm.deployment.planner</td>
+<td style="text-align: left;">FirstFitPlanner</td>
+<td style="text-align: left;">Instance 배치에 사용할 Deployment Planner를 지정한다. (FirstFitPlanner, UserDispersingPlanner, UserConcentratedPodPlanner)</td>
+</tr>
+<tr>
+<td style="text-align: center;">host.capacityType.to.order.clusters</td>
+<td style="text-align: left;">CPU</td>
+<td style="text-align: left;">Deployment Planner가 Cluster 순서를 정할 때 기준으로 사용할 용량 유형을 지정한다. (CPU, RAM, COMBINED)</td>
+</tr>
+<tr>
+<td style="text-align: center;">host.capacityType.to.order.clusters.cputomemoryweight</td>
+<td style="text-align: left;">0.5</td>
+<td style="text-align: left;">COMBINED 사용 시 CPU에 적용할 가중치를 0 ~ 1 사이 값으로 지정한다. Memory 가중치는 (1 - CPU 가중치)가 된다.</td>
+</tr>
+</tbody>
+</table>
+<h2 class="j-제목-3" id="지원-알고리즘">지원 알고리즘</h2>
+<p>vm.allocation.algorithm과 volume.allocation.algorithm은 동일한 값을 지원하며, 각각 Host와 Storage Pool에 같은 방식으로 적용된다.</p>
+<table style="width:98%;">
+<caption>표 ‑ Allocation Algorithm 지원 값</caption>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 72%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: center;"><strong>값</strong></th>
+<th style="text-align: left;"><strong>동작</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: center;">random (기본값)</td>
+<td style="text-align: left;">Cluster 내에서 무작위로 선택한다.</td>
+</tr>
+<tr>
+<td style="text-align: center;">firstfit</td>
+<td style="text-align: left;">Cluster 내에서 조건을 만족하는 첫 번째 대상을 선택한다.</td>
+</tr>
+<tr>
+<td style="text-align: center;">userdispersing</td>
+<td style="text-align: left;">해당 사용자의 Instance 수가 가장 적은 대상을 우선 선택하여 분산 배치한다.</td>
+</tr>
+<tr>
+<td style="text-align: center;">userconcentratedpod_random</td>
+<td style="text-align: left;">해당 사용자의 Instance가 많은 Pod 내에서 무작위로 선택하여 Pod 단위로 집중 배치한다.</td>
+</tr>
+<tr>
+<td style="text-align: center;">userconcentratedpod_firstfit</td>
+<td style="text-align: left;">해당 사용자의 Instance가 가장 많은 Pod에서 조건을 만족하는 첫 번째 대상을 선택한다.</td>
+</tr>
+<tr>
+<td style="text-align: center;">firstfitleastconsumed</td>
+<td style="text-align: left;">조건을 만족하는 대상을 자원 할당량이 적은 순으로 정렬한 후 첫 번째 대상을 선택한다.</td>
+</tr>
+</tbody>
+</table>
+<h2 class="j-제목-3" id="제약-사항-및-주의-사항">제약 사항 및 주의 사항</h2>
+<ul>
+<li><p>DRS는 단일 Cluster 내부에서만 동작하며, Cluster 간 Instance 재배치는 수행하지 않는다.</p></li>
+<li><p>DRS는 Live Migration 기능을 사용하므로, Live Migration이 불가능한 Instance는 재배치 대상에서 제외된다.</p></li>
+<li><p>condensed 알고리즘은 Instance를 소수의 Host에 집중시키므로 자원 경합이 발생할 수 있다. 운영 환경에는 권장하지 않는다.</p></li>
+<li><p>drs.imbalance 값을 높게 설정하면 DRS가 자주 동작하여 Live Migration이 빈번하게 발생할 수 있다. 운영 부하를 고려하여 조정해야 한다.</p></li>
+<li><p>drs.metric과 drs.metric.type 값을 변경하면 불균형 계산 결과가 크게 달라질 수 있으므로, 변경 후에는 수동으로 계획을 생성하여 결과를 먼저 확인한다.</p></li>
+<li><p>Affinity Group, Host Tag 등 배치 제약으로 인해 생성된 계획의 일부 Migration이 실패할 수 있으므로 실행 후 마이그레이션 성공(Successful migrations) 값을 함께 확인한다.</p></li>
+</ul>
