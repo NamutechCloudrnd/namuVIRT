@@ -69,6 +69,25 @@ ensure_build_deps_script() {
   fi
 }
 
+# /etc/os-release VERSION_ID 의 major 버전 (8, 9 ...). 판별 불가 시 빈 문자열.
+el_major_version() {
+  local ver=""
+  [ -r /etc/os-release ] && ver="$(. /etc/os-release && printf '%s' "${VERSION_ID:-}")"
+  printf '%s' "${ver%%.*}"
+}
+
+# node major 버전 (없으면 0). 인자: node 바이너리 (기본 PATH 의 node).
+node_major_version() {
+  local node_bin="${1:-node}" ver
+  ver="$("${node_bin}" -v 2>/dev/null || true)"
+  ver="${ver#v}"
+  ver="${ver%%.*}"
+  case "${ver}" in
+    ''|*[!0-9]*) printf '0' ;;
+    *) printf '%s' "${ver}" ;;
+  esac
+}
+
 # 산출물 디렉터리를 비운 뒤 재생성 (이전 빌드 잔여물 제거).
 prepare_fresh_output_dir() {
   local dir="$1"
@@ -270,6 +289,8 @@ write_build_metadata() {
     printf 'mode=%s\n' "${MODE}"
     printf 'with_vmware=%s\n' "${WITH_VMWARE}"
     printf 'package_format=%s\n' "${format}"
+    [ -n "${RPM_DIST:-}" ] && printf 'rpm_dist=%s\n' "${RPM_DIST}"
+    printf 'build_os=%s\n' "$( [ -r /etc/os-release ] && . /etc/os-release && printf '%s' "${PRETTY_NAME:-unknown}" || printf unknown)"
     printf 'repo_dir=%s\n' "${REPO_DIR}"
     printf 'built_at=%s\n' "$(date -Is)"
   } > "${OUT_DIR}/BUILD_INFO.txt"

@@ -5,7 +5,7 @@
 ## 빠른 시작
 
 ```bash
-# Rocky 8 — RPM (빌드 도구 없으면 자동 설치, sudo 사용 가능)
+# Rocky 8 / Rocky 9 — RPM (호스트 OS 로 el8/el9 자동 선택, 빌드 도구 없으면 자동 설치, sudo 사용 가능)
 ./build/rocky.sh
 
 # Ubuntu — deb (빌드 도구 없으면 자동 설치, sudo 사용 가능)
@@ -18,7 +18,8 @@
 
 | 스크립트 | 패키지 경로 |
 |----------|-------------|
-| `./build/rocky.sh` | `build/packages/rpm/latest/*.rpm` |
+| `./build/rocky.sh` (Rocky 8) | `build/packages/rpm/el8/latest/*.rpm` |
+| `./build/rocky.sh` (Rocky 9) | `build/packages/rpm/el9/latest/*.rpm` |
 | `./build/ubuntu.sh` | `build/packages/deb/latest/*.deb` |
 
 매 빌드마다 `SHA256SUMS`, `BUILD_INFO.txt`가 생성됩니다 (브랜치·커밋은 메타데이터에만 기록, 경로에는 없음).
@@ -36,7 +37,8 @@
 
 | OS | 스크립트 | 설치 내용 |
 |----|----------|-----------|
-| Rocky 8 | `build/lib/deps-rocky.sh` | Java 17, rpmbuild, Node, Maven `/opt/maven` |
+| Rocky 8 | `build/lib/deps-rocky.sh` | Java 17, rpmbuild, Node 18 (`nodejs:18` 모듈), genisoimage, Maven `/opt/maven` |
+| Rocky 9 | `build/lib/deps-rocky.sh` | Java 17, rpmbuild, Node 20 (`nodejs:20` 모듈), xorriso, Maven `/opt/maven` |
 | Ubuntu | `build/lib/deps-ubuntu.sh` | openjdk-17-jdk, maven, devscripts, nodejs/npm, python2 equivs 등 |
 
 빌드 스크립트가 누락 시 자동 호출합니다. 일반 사용자로 실행하면 `sudo`로 deps 설치를 시도합니다.
@@ -58,7 +60,9 @@ sudo ./build/lib/deps-ubuntu.sh --check-only
 build/
   rocky.sh          ubuntu.sh     ← 엔트리
   lib/              common, rocky, ubuntu, deps-rocky, deps-ubuntu
-  packages/rpm/latest/
+  docker/           Dockerfile, entrypoint.sh (Rocky 8/9 빌더 이미지)
+  packages/rpm/el8/latest/
+  packages/rpm/el9/latest/
   packages/deb/latest/
 vendor/cloudstack-nonoss/   ← JAR + install-non-oss.sh
 ```
