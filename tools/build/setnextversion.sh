@@ -131,6 +131,9 @@ echo "setting new version numbers"
 mvn versions:set -DnewVersion=$version -P vmware -P developer -P systemvm -P simulator -Dnoredist versions:commit
 
 perl -pi -e "s/$currentversion/$version/" debian/changelog
+for changelog in packaging/ubuntu*/debian/changelog; do
+    if [ -f "$changelog" ]; then perl -pi -e "s/$currentversion/$version/" "$changelog"; fi
+done
 perl -pi -e "s/$currentversion/$version/" tools/checkstyle/pom.xml
 perl -pi -e "s/$currentversion/$version/" tools/marvin/setup.py
 

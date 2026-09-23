@@ -76,6 +76,14 @@ el_major_version() {
   printf '%s' "${ver%%.*}"
 }
 
+# Ubuntu 배포판 식별자 (24.04 → ubuntu2404). packaging/<id>/debian, packages/deb/<id>/ 이름에 사용. 판별 불가 시 빈 문자열.
+ubuntu_dist_id() {
+  local ver=""
+  [ -r /etc/os-release ] && ver="$(. /etc/os-release && printf '%s' "${VERSION_ID:-}")"
+  [ -n "${ver}" ] || return 0
+  printf 'ubuntu%s' "${ver//./}"
+}
+
 # node major 버전 (없으면 0). 인자: node 바이너리 (기본 PATH 의 node).
 node_major_version() {
   local node_bin="${1:-node}" ver
@@ -290,6 +298,8 @@ write_build_metadata() {
     printf 'with_vmware=%s\n' "${WITH_VMWARE}"
     printf 'package_format=%s\n' "${format}"
     [ -n "${RPM_DIST:-}" ] && printf 'rpm_dist=%s\n' "${RPM_DIST}"
+    [ -n "${DEB_DIST:-}" ] && printf 'deb_dist=%s\n' "${DEB_DIST}"
+    [ -n "${DEBIAN_SRC_DIR:-}" ] && printf 'debian_dir=%s\n' "${DEBIAN_SRC_DIR#"${REPO_DIR}/"}"
     printf 'build_os=%s\n' "$( [ -r /etc/os-release ] && . /etc/os-release && printf '%s' "${PRETTY_NAME:-unknown}" || printf unknown)"
     printf 'repo_dir=%s\n' "${REPO_DIR}"
     printf 'built_at=%s\n' "$(date -Is)"

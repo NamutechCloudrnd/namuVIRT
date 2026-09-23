@@ -89,7 +89,8 @@ build_deps_missing() {
     printf '%s\n' 'openjdk-17-jdk (java/javac 17)'
   fi
 
-  for tool in mvn dch dpkg-buildpackage node npm python3 genisoimage jar; do
+  # wget·jq: debian/rules 가 cloudmonkey(cmk) 릴리스를 조회·다운로드할 때 사용.
+  for tool in mvn dch dpkg-buildpackage node npm python3 genisoimage jar wget jq; do
     command -v "${tool}" >/dev/null 2>&1 || {
       ok_tools=0
       printf '%s\n' "${tool}"
@@ -141,7 +142,7 @@ install_apt_packages() {
   local pkgs=(
     openjdk-17-jdk maven devscripts debhelper build-essential genisoimage
     nodejs npm python3 python3-mysql.connector python3-setuptools
-    lsb-release equivs curl ca-certificates
+    lsb-release equivs curl wget jq ca-certificates
   )
   # dh-systemd: Ubuntu 22.04 이하 전용. Noble(24.04)+ 는 debhelper(>=13)에 포함.
   if [ "${DRY_RUN}" -eq 1 ]; then
