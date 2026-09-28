@@ -79,7 +79,7 @@ build_deps_missing() {
     printf '%s\n' 'java-17-openjdk-devel (java/javac 17)'
   fi
 
-  for tool in rpmbuild rpm2cpio mvn node npm python3 make g++ jq; do
+  for tool in rpmbuild rpm2cpio cpio mvn node npm python3 make g++ jq curl wget; do
     command -v "${tool}" >/dev/null 2>&1 || {
       ok_tools=0
       printf '%s\n' "${tool}"
@@ -179,10 +179,14 @@ install_build_packages() {
   # Rocky 9 기본 저장소에는 genisoimage 가 없음 — xorriso 가 /usr/bin/mkisofs 제공.
   local iso_pkg=genisoimage
   [ "${EL_MAJOR}" = "9" ] && iso_pkg=xorriso
+  # cpio: common.sh 의 verify_vmware_artifacts_in_archive 가 rpm2cpio 와 함께 사용.
+  # systemd-rpm-macros: cloud.spec 의 %{_unitdir} 전개에 필요 (기본 이미지에 없음).
+  # /usr/bin/curl: 패키지명 'curl' 을 쓰면 Rocky 9/10 기본 이미지의 curl-minimal 과
+  #   충돌해 dnf 트랜잭션 전체가 실패한다. 파일 provide 는 양쪽 모두 충족한다.
   local pkgs=(
-    rpm-build rpm-sign nodejs npm python3 python3-setuptools
+    rpm-build rpm-sign systemd-rpm-macros nodejs npm python3 python3-setuptools
     make gcc gcc-c++ glibc-devel "${iso_pkg}" jpackage-utils
-    wget curl tar patch which jq
+    wget /usr/bin/curl tar patch which jq cpio
   )
   if [ "${DRY_RUN}" -eq 1 ]; then
     log "dnf install -y ${pkgs[*]}"
