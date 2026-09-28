@@ -180,6 +180,11 @@ EOF
 
 # nodejs 모듈 스트림을 NODEJS_STREAM 으로 전환 (설치된 node 가 NODE_MIN_MAJOR 미만일 때).
 install_nodejs_stream() {
+  if [ "${NODEJS_STREAM}" = "none" ]; then
+    # EL10+ 는 dnf modularity 가 제거돼 module reset/enable 이 실패한다. 기본 nodejs(22)로 충분.
+    log "EL${EL_MAJOR}: dnf modularity unavailable — using the default nodejs stream"
+    return 0
+  fi
   if [ "${DRY_RUN}" -eq 1 ]; then
     log "dnf module enable nodejs:${NODEJS_STREAM} (if node < ${NODE_MIN_MAJOR})"
     return 0
@@ -201,9 +206,10 @@ install_nodejs_stream() {
 
 # dnf 로 rpmbuild·nodejs·gcc 등 RPM/UI 빌드 패키지 설치.
 install_build_packages() {
-  # Rocky 9 기본 저장소에는 genisoimage 가 없음 — xorriso 가 /usr/bin/mkisofs 제공.
+  # EL9+ 기본 저장소에는 genisoimage 가 없음 — xorriso 가 /usr/bin/mkisofs 를 제공해
+  # cloud.spec 의 `BuildRequires: /usr/bin/mkisofs` 를 충족한다.
   local iso_pkg=genisoimage
-  [ "${EL_MAJOR}" = "9" ] && iso_pkg=xorriso
+  [ "${EL_MAJOR_NUM}" -ge 9 ] && iso_pkg=xorriso
   # cpio: common.sh 의 verify_vmware_artifacts_in_archive 가 rpm2cpio 와 함께 사용.
   # systemd-rpm-macros: cloud.spec 의 %{_unitdir} 전개에 필요 (기본 이미지에 없음).
   # /usr/bin/curl: 패키지명 'curl' 을 쓰면 Rocky 9/10 기본 이미지의 curl-minimal 과

@@ -76,6 +76,27 @@ el_major_version() {
   printf '%s' "${ver%%.*}"
 }
 
+# EL 배포판 식별자 (Rocky 10 → el10). packaging/<id>, packages/rpm/<id>/ 이름에 사용.
+# EL 계열이 아니거나 판별 불가 시 빈 문자열 (Fedora 에서 el42 같은 값이 나오지 않게 한다).
+rpm_dist_id() {
+  local id="" like="" ver="" major=""
+  if [ -r /etc/os-release ]; then
+    id="$(. /etc/os-release && printf '%s' "${ID:-}")"
+    like="$(. /etc/os-release && printf '%s' "${ID_LIKE:-}")"
+    ver="$(. /etc/os-release && printf '%s' "${VERSION_ID:-}")"
+  fi
+  case " ${id} ${like} " in
+    *" rhel "*|*" rocky "*|*" centos "*|*" almalinux "*|*" fedora "*) ;;
+    *) return 0 ;;
+  esac
+  [ "${id}" = "fedora" ] && return 0
+  major="${ver%%.*}"
+  case "${major}" in
+    ''|*[!0-9]*) return 0 ;;
+  esac
+  printf 'el%s' "${major}"
+}
+
 # Ubuntu 배포판 식별자 (24.04 → ubuntu2404). packaging/<id>/debian, packages/deb/<id>/ 이름에 사용. 판별 불가 시 빈 문자열.
 ubuntu_dist_id() {
   local ver=""
