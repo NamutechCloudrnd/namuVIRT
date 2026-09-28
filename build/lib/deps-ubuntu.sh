@@ -78,11 +78,11 @@ build_deps_missing() {
   build_deps_path
   local ok_java=1 ok_tools=1
 
-  if java -version 2>&1 | grep -qE 'version "17\.|openjdk version "17\.' \
+  if [ "$(jdk_major_of java)" = "17" ] \
     && command -v javac >/dev/null 2>&1 \
-    && javac -version 2>&1 | grep -qE 'javac 17\.'; then
+    && [ "$(jdk_major_of javac)" = "17" ]; then
     :
-  elif resolve_java17_jdk_home >/dev/null 2>&1; then
+  elif resolve_jdk_home 17 >/dev/null 2>&1; then
     :
   else
     ok_java=0

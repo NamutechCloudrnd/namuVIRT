@@ -21,6 +21,8 @@ fi
 UI_NODE_HEAP_MB="${NODE_MAX_OLD_SPACE_SIZE:-16384}"
 UI_NODE_PATH="/usr/bin:/bin:/usr/sbin:/sbin"
 UI_NODE_MIN_MAJOR=18
+# 빌드에 쓸 JDK major (EL8/EL9: 17, EL10+: 21 — 저장소에 java-17-openjdk 가 없음).
+JDK_MAJOR="$(rocky_jdk_major)"
 # OpenSSL 3 (Rocky 9) 에서 webpack 4 md4 해시용으로 detect_ui_node_openssl_option 이 채움.
 UI_NODE_EXTRA_OPTS=""
 OUT_DIR="${BUILD_DIR}/packages/rpm/${RPM_DIST}/latest"
@@ -198,12 +200,13 @@ log "rpm_dist=${RPM_DIST}"
 log "branch=${BRANCH}"
 log "build-mode=${MODE}"
 log "with-vmware=${WITH_VMWARE}"
+log "jdk-major=${JDK_MAJOR}"
 log "ui-node-heap-mb=${UI_NODE_HEAP_MB}"
 log "output=${OUT_DIR}"
 log "execution=$([ "${DRY_RUN}" -eq 1 ] && echo dry-run || echo apply)"
 
 ensure_build_dependencies
-verify_java17_jdk
+verify_jdk "${JDK_MAJOR}"
 verify_rpm_build_tools
 ensure_vmware_non_oss_deps
 run mkdir -p "${LOG_DIR}"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rocky 8/9 빌드 호스트 의존성 설치·검사.
+# Rocky 8/9/10 빌드 호스트 의존성 설치·검사.
 # ./build/rocky.sh 가 자동 호출하거나, 수동: sudo ./build/lib/deps-rocky.sh
 
 set -Eeuo pipefail
@@ -20,7 +20,17 @@ MAVEN_LINK="${MAVEN_LINK:-/opt/maven}"
 # UI(webpack 4) 빌드용 Node 최소 major. Rocky 9 기본 nodejs 는 16 이라 모듈 스트림 전환 필요.
 NODE_MIN_MAJOR="${NODE_MIN_MAJOR:-18}"
 EL_MAJOR="$(el_major_version)"
-if [ "${EL_MAJOR}" = "9" ]; then
+# set -u 아래에서 [ "" -ge 9 ] 가 죽지 않도록 숫자 비교용 변수를 따로 둔다.
+case "${EL_MAJOR}" in
+  ''|*[!0-9]*) EL_MAJOR_NUM=0 ;;
+  *) EL_MAJOR_NUM="${EL_MAJOR}" ;;
+esac
+# 빌드에 쓸 JDK major (EL8/EL9: 17, EL10+: 21 — 저장소에 java-17-openjdk 가 없음).
+JDK_MAJOR="$(rocky_jdk_major "${EL_MAJOR}")"
+if [ "${EL_MAJOR_NUM}" -ge 10 ]; then
+  # EL10 은 dnf modularity 가 제거됐고 기본 nodejs 가 22 라 스트림 전환이 불필요·불가능.
+  NODEJS_STREAM="${NODEJS_STREAM:-none}"
+elif [ "${EL_MAJOR_NUM}" -eq 9 ]; then
   NODEJS_STREAM="${NODEJS_STREAM:-20}"
 else
   NODEJS_STREAM="${NODEJS_STREAM:-18}"
@@ -32,8 +42,8 @@ usage() {
 Usage:
   ./build/lib/deps-rocky.sh [--check-only] [--dry-run]
 
-Installs Rocky 8/9 build tools for ./build/rocky.sh:
-  Java 17 JDK, rpm-build, nodejs:${NODEJS_STREAM} (>= ${NODE_MIN_MAJOR}), Maven ${MAVEN_VERSION} -> ${MAVEN_LINK}
+Installs Rocky 8/9/10 build tools for ./build/rocky.sh:
+  JDK ${JDK_MAJOR}, rpm-build, nodejs:${NODEJS_STREAM} (>= ${NODE_MIN_MAJOR}), Maven ${MAVEN_VERSION} -> ${MAVEN_LINK}
 USAGE
 }
 
@@ -68,15 +78,15 @@ build_deps_missing() {
   build_deps_path
   local ok_java=1 ok_tools=1
 
-  if java -version 2>&1 | grep -qE 'version "17\.|openjdk version "17\.' \
+  if [ "$(jdk_major_of java)" = "${JDK_MAJOR}" ] \
     && command -v javac >/dev/null 2>&1 \
-    && javac -version 2>&1 | grep -qE 'javac 17\.'; then
+    && [ "$(jdk_major_of javac)" = "${JDK_MAJOR}" ]; then
     :
-  elif resolve_java17_jdk_home >/dev/null 2>&1; then
+  elif resolve_jdk_home "${JDK_MAJOR}" >/dev/null 2>&1; then
     :
   else
     ok_java=0
-    printf '%s\n' 'java-17-openjdk-devel (java/javac 17)'
+    printf '%s\n' "java-${JDK_MAJOR}-openjdk-devel (java/javac ${JDK_MAJOR})"
   fi
 
   for tool in rpmbuild rpm2cpio cpio mvn node npm python3 make g++ jq curl wget; do
@@ -109,48 +119,63 @@ build_deps_missing() {
   [ "${ok_java}" -eq 1 ] && [ "${ok_tools}" -eq 1 ]
 }
 
-# dnf 로 java-17-openjdk-devel 설치.
-install_java17_devel() {
+# dnf 로 java-<JDK_MAJOR>-openjdk-devel 설치.
+install_jdk_devel() {
   if [ "${DRY_RUN}" -eq 1 ]; then
-    log "dnf install -y java-17-openjdk-devel"
+    log "dnf install -y java-${JDK_MAJOR}-openjdk-devel"
     return 0
   fi
-  if rpm -q java-17-openjdk-devel >/dev/null 2>&1; then
-    log "java-17-openjdk-devel already installed"
+  if rpm -q "java-${JDK_MAJOR}-openjdk-devel" >/dev/null 2>&1; then
+    log "java-${JDK_MAJOR}-openjdk-devel already installed"
     return 0
   fi
-  run dnf install -y java-17-openjdk-devel
+  run dnf install -y "java-${JDK_MAJOR}-openjdk-devel"
 }
 
-# alternatives 로 시스템 기본 java/javac 을 17로 설정.
-configure_java17_alternatives() {
+# 존재하는 alternatives 패밀리만 --set (EL10 에는 java_sdk_<major> 계열이 없다).
+alternatives_set_if_present() {
+  local family="$1" target="$2"
+  if alternatives --display "${family}" >/dev/null 2>&1; then
+    run alternatives --set "${family}" "${target}"
+  else
+    log "alternatives family ${family} not present — skip"
+  fi
+}
+
+# alternatives 로 시스템 기본 java/javac 을 JDK_MAJOR 로 설정.
+configure_jdk_alternatives() {
   local java_home
   if [ "${DRY_RUN}" -eq 1 ]; then
-    log "alternatives --set java/javac to Java 17"
+    log "alternatives --set java/javac to JDK ${JDK_MAJOR}"
     return 0
   fi
-  java_home="$(resolve_java17_jdk_home)" || die "Java 17 JDK not found under /usr/lib/jvm after install"
-  run alternatives --set java_sdk_17_openjdk "${java_home}"
-  run alternatives --set java_sdk_17 "${java_home}"
-  run alternatives --set java "${java_home}/bin/java"
-  run alternatives --set javac "${java_home}/bin/javac"
+  java_home="$(resolve_jdk_home "${JDK_MAJOR}")" \
+    || die "JDK ${JDK_MAJOR} not found under /usr/lib/jvm after install"
+  alternatives_set_if_present "java_sdk_${JDK_MAJOR}_openjdk" "${java_home}"
+  alternatives_set_if_present "java_sdk_${JDK_MAJOR}" "${java_home}"
+  alternatives_set_if_present java "${java_home}/bin/java"
+  alternatives_set_if_present javac "${java_home}/bin/javac"
+  [ "$(jdk_major_of java)" = "${JDK_MAJOR}" ] || die "system java is not ${JDK_MAJOR} after alternatives"
+  [ "$(jdk_major_of javac)" = "${JDK_MAJOR}" ] || die "system javac is not ${JDK_MAJOR} after alternatives"
   log "alternatives: java/javac -> ${java_home}"
 }
 
-# /etc/profile.d/namuvirt-java17.sh 에 JAVA_HOME 기록.
+# /etc/profile.d/namuvirt-java.sh 에 JAVA_HOME 기록.
 write_java_home_profile() {
   local java_home
   if [ "${DRY_RUN}" -eq 1 ]; then
-    log "write /etc/profile.d/namuvirt-java17.sh"
+    log "write /etc/profile.d/namuvirt-java.sh"
     return 0
   fi
-  java_home="$(resolve_java17_jdk_home)" || die "Java 17 JDK not found for profile.d"
-  cat > /etc/profile.d/namuvirt-java17.sh <<EOF
-# namuVIRT Rocky build host — Java 17 JDK
+  java_home="$(resolve_jdk_home "${JDK_MAJOR}")" || die "JDK ${JDK_MAJOR} not found for profile.d"
+  # 이전 버전이 남긴 파일 제거 (JAVA_HOME 이 두 번 export 되는 것을 막는다).
+  rm -f /etc/profile.d/namuvirt-java17.sh
+  cat > /etc/profile.d/namuvirt-java.sh <<EOF
+# namuVIRT Rocky build host — JDK ${JDK_MAJOR}
 export JAVA_HOME=${java_home}
 export PATH=\${JAVA_HOME}/bin:\${PATH}
 EOF
-  chmod 644 /etc/profile.d/namuvirt-java17.sh
+  chmod 644 /etc/profile.d/namuvirt-java.sh
 }
 
 # nodejs 모듈 스트림을 NODEJS_STREAM 으로 전환 (설치된 node 가 NODE_MIN_MAJOR 미만일 때).
@@ -279,8 +304,8 @@ if [ "${CHECK_ONLY}" -eq 1 ]; then
   exit 1
 fi
 
-install_java17_devel
-configure_java17_alternatives
+install_jdk_devel
+configure_jdk_alternatives
 write_java_home_profile
 install_nodejs_stream
 install_build_packages

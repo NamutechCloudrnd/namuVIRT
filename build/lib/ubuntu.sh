@@ -203,7 +203,7 @@ log "execution=$([ "${DRY_RUN}" -eq 1 ] && echo dry-run || echo apply)"
 select_debian_dir
 verify_changelog_version
 ensure_build_dependencies
-verify_java17_jdk
+verify_jdk 17
 ensure_vmware_non_oss_deps
 verify_ubuntu_build_tools
 run mkdir -p "${LOG_DIR}"
