@@ -76,6 +76,35 @@ el_major_version() {
   printf '%s' "${ver%%.*}"
 }
 
+# EL 배포판 식별자 (Rocky 10 → el10). packaging/<id>, packages/rpm/<id>/ 이름에 사용.
+# EL 계열이 아니거나 판별 불가 시 빈 문자열 (Fedora 에서 el42 같은 값이 나오지 않게 한다).
+rpm_dist_id() {
+  local id="" like="" ver="" major=""
+  if [ -r /etc/os-release ]; then
+    id="$(. /etc/os-release && printf '%s' "${ID:-}")"
+    like="$(. /etc/os-release && printf '%s' "${ID_LIKE:-}")"
+    ver="$(. /etc/os-release && printf '%s' "${VERSION_ID:-}")"
+  fi
+  case " ${id} ${like} " in
+    *" rhel "*|*" rocky "*|*" centos "*|*" almalinux "*|*" fedora "*) ;;
+    *) return 0 ;;
+  esac
+  [ "${id}" = "fedora" ] && return 0
+  major="${ver%%.*}"
+  case "${major}" in
+    ''|*[!0-9]*) return 0 ;;
+  esac
+  printf 'el%s' "${major}"
+}
+
+# Ubuntu 배포판 식별자 (24.04 → ubuntu2404). packaging/<id>/debian, packages/deb/<id>/ 이름에 사용. 판별 불가 시 빈 문자열.
+ubuntu_dist_id() {
+  local ver=""
+  [ -r /etc/os-release ] && ver="$(. /etc/os-release && printf '%s' "${VERSION_ID:-}")"
+  [ -n "${ver}" ] || return 0
+  printf 'ubuntu%s' "${ver//./}"
+}
+
 # node major 버전 (없으면 0). 인자: node 바이너리 (기본 PATH 의 node).
 node_major_version() {
   local node_bin="${1:-node}" ver
@@ -99,25 +128,58 @@ prepare_fresh_output_dir() {
   mkdir -p "${dir}"
 }
 
-# /usr/lib/jvm 에서 Java 17 JDK(javac 포함) 홈 경로 탐색.
-resolve_java17_jdk_home() {
-  local candidate home real_java
-  for candidate in /usr/lib/jvm/java-17-openjdk /usr/lib/jvm/java-17-openjdk-*; do
-    if [ -d "${candidate}" ] && [ -x "${candidate}/bin/java" ] && [ -x "${candidate}/bin/javac" ]; then
-      printf '%s' "$(readlink -f "${candidate}")"
-      return 0
-    fi
+# java/javac 바이너리의 feature 버전 (판별 불가 시 0).
+# 'openjdk version "21.0.12" ...' / 'javac 17.0.20.1' 양쪽 형식 처리.
+jdk_major_of() {
+  local bin="${1:-java}" ver
+  ver="$("${bin}" -version 2>&1 || true)"
+  ver="$(printf '%s' "${ver}" | sed -n 's/.*[" ]\([0-9][0-9]*\)[.".].*/\1/p' | head -1)"
+  case "${ver}" in
+    ''|*[!0-9]*) printf '0' ;;
+    *) printf '%s' "${ver}" ;;
+  esac
+}
+
+# /usr/lib/jvm 에서 JDK(javac 포함) 홈 경로 탐색. 인자: 허용 major 목록 (예: 17, 또는 "17 21").
+resolve_jdk_home() {
+  local major candidate real_java
+  for major in "$@"; do
+    for candidate in "/usr/lib/jvm/java-${major}-openjdk" "/usr/lib/jvm/java-${major}-openjdk"-*; do
+      if [ -d "${candidate}" ] && [ -x "${candidate}/bin/java" ] && [ -x "${candidate}/bin/javac" ]; then
+        printf '%s' "$(readlink -f "${candidate}")"
+        return 0
+      fi
+    done
   done
+  # java-<major>-openjdk 이름 규칙을 안 따르는 배포판용 폴백.
   if [ -x /etc/alternatives/java ]; then
     real_java="$(readlink -f /etc/alternatives/java)"
     candidate="$(dirname "$(dirname "${real_java}")")"
     if [ -x "${candidate}/bin/java" ] && [ -x "${candidate}/bin/javac" ]; then
-      java -version 2>&1 | grep -qE 'version "17\.|openjdk version "17\.' || return 1
-      printf '%s' "${candidate}"
-      return 0
+      for major in "$@"; do
+        if [ "$(jdk_major_of "${candidate}/bin/java")" = "${major}" ]; then
+          printf '%s' "${candidate}"
+          return 0
+        fi
+      done
     fi
   fi
   return 1
+}
+
+# EL major 에서 빌드에 쓸 JDK major. Rocky/EL 호스트 전용 (Ubuntu 경로는 verify_jdk 17 고정).
+# EL10 부터는 저장소에 java-17-openjdk 가 없어 시스템 JDK 21 을 쓴다.
+# NAMUVIRT_JDK_MAJOR 로 강제 가능 (예: /opt 에 직접 설치한 JDK 를 쓸 때).
+rocky_jdk_major() {
+  local major="${1:-$(el_major_version)}"
+  if [ -n "${NAMUVIRT_JDK_MAJOR:-}" ]; then
+    printf '%s' "${NAMUVIRT_JDK_MAJOR}"
+    return 0
+  fi
+  case "${major}" in
+    ''|*[!0-9]*) printf '17' ;;
+    *) if [ "${major}" -ge 10 ]; then printf '21'; else printf '17'; fi ;;
+  esac
 }
 
 # RPM 이 rpmbuild --short-circuit 산출물인지 확인 (dnf 설치 불가).
@@ -207,24 +269,44 @@ ensure_vmware_non_oss_deps() {
   fi
 }
 
-# java/javac 17 설치·PATH 확인; 필요 시 JAVA_HOME 자동 설정.
-verify_java17_jdk() {
+# 요구 major 의 java/javac 설치·PATH 확인; 필요 시 JAVA_HOME 자동 설정.
+# 인자: 허용 major 목록 (기본 17). Rocky 10 은 21, 그 외/Ubuntu 는 17.
+verify_jdk() {
+  local majors=("$@") m ok=0 candidate
+  [ "${#majors[@]}" -gt 0 ] || majors=(17)
   if [ "${DRY_RUN}" -eq 1 ]; then
-    log "verify Java 17 JDK: java/javac version 17"
+    log "verify JDK: java/javac major in [${majors[*]}]"
     return 0
   fi
-  if ! java -version 2>&1 | grep -qE 'version "17\.|openjdk version "17\.' \
-    || ! command -v javac >/dev/null 2>&1; then
-    if candidate="$(resolve_java17_jdk_home)"; then
-      export JAVA_HOME="${candidate}"
-      export PATH="${JAVA_HOME}/bin:${PATH}"
-      log "JAVA_HOME=${JAVA_HOME}"
-    fi
+  # 이미 맞는 JAVA_HOME 이 주어졌으면 그것을 존중 (Docker 이미지의 ENV JAVA_HOME).
+  if [ -n "${JAVA_HOME:-}" ] && [ -x "${JAVA_HOME}/bin/javac" ]; then
+    for m in "${majors[@]}"; do
+      if [ "$(jdk_major_of "${JAVA_HOME}/bin/java")" = "${m}" ]; then
+        export PATH="${JAVA_HOME}/bin:${PATH}"
+        ok=1
+        break
+      fi
+    done
+  fi
+  if [ "${ok}" -eq 0 ] && command -v javac >/dev/null 2>&1; then
+    for m in "${majors[@]}"; do
+      if [ "$(jdk_major_of java)" = "${m}" ] && [ "$(jdk_major_of javac)" = "${m}" ]; then
+        ok=1
+        break
+      fi
+    done
+  fi
+  if [ "${ok}" -eq 0 ] && candidate="$(resolve_jdk_home "${majors[@]}")"; then
+    export JAVA_HOME="${candidate}"
+    export PATH="${JAVA_HOME}/bin:${PATH}"
+    log "JAVA_HOME=${JAVA_HOME}"
+    ok=1
   fi
   command -v java >/dev/null 2>&1 || die "java not found — run ./build/rocky.sh or ./build/ubuntu.sh without --no-auto-deps (sudo may be required)"
-  command -v javac >/dev/null 2>&1 || die "javac not found — install Java 17 JDK (Rocky: deps-rocky.sh, Ubuntu: deps-ubuntu.sh)"
-  java -version 2>&1 | grep -qE 'version "17\.|openjdk version "17\.' || die "Java 17 is required"
-  javac -version 2>&1 | grep -qE 'javac 17\.' || die "javac 17 is required"
+  command -v javac >/dev/null 2>&1 || die "javac not found — install a JDK (Rocky: deps-rocky.sh, Ubuntu: deps-ubuntu.sh)"
+  [ "${ok}" -eq 1 ] \
+    || die "JDK major in [${majors[*]}] is required (found java $(jdk_major_of java), javac $(jdk_major_of javac))"
+  log "jdk: $(command -v java) major=$(jdk_major_of java)"
 }
 
 # cloudstack-management RPM/deb 안에 VMware 모듈·JAR 포함 여부 검증.
@@ -290,6 +372,8 @@ write_build_metadata() {
     printf 'with_vmware=%s\n' "${WITH_VMWARE}"
     printf 'package_format=%s\n' "${format}"
     [ -n "${RPM_DIST:-}" ] && printf 'rpm_dist=%s\n' "${RPM_DIST}"
+    [ -n "${DEB_DIST:-}" ] && printf 'deb_dist=%s\n' "${DEB_DIST}"
+    [ -n "${DEBIAN_SRC_DIR:-}" ] && printf 'debian_dir=%s\n' "${DEBIAN_SRC_DIR#"${REPO_DIR}/"}"
     printf 'build_os=%s\n' "$( [ -r /etc/os-release ] && . /etc/os-release && printf '%s' "${PRETTY_NAME:-unknown}" || printf unknown)"
     printf 'repo_dir=%s\n' "${REPO_DIR}"
     printf 'built_at=%s\n' "$(date -Is)"

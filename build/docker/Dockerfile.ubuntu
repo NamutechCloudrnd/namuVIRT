@@ -1,0 +1,32 @@
+# Ubuntu 24.04/26.04 deb 빌더 이미지. 빌드 컨텍스트는 build/ 디렉터리.
+#   docker build -f build/docker/Dockerfile.ubuntu -t namuvirt-build-ubuntu2404 build/
+#   docker build -f build/docker/Dockerfile.ubuntu --build-arg UBUNTU_VERSION=26.04 -t namuvirt-build-ubuntu2604 build/
+# 실행: 레포를 /src 에 마운트, 산출물은 /out/<ubuntu2404|ubuntu2604>/latest/
+#   docker run --rm -v "$PWD":/src:ro -v "$PWD/build/packages/deb":/out namuvirt-build-ubuntu2604
+# 빌드 의존성은 build/lib/deps-ubuntu.sh 로 이미지에 미리 굽는다.
+ARG UBUNTU_VERSION=24.04
+FROM ubuntu:${UBUNTU_VERSION}
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update -qq \
+  && apt-get install -y --no-install-recommends git rsync tar findutils diffutils procps ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+# 빌드 도구(openjdk-17-jdk, devscripts, debhelper, Node, Maven, python equivs) 설치.
+COPY lib/ /opt/namuvirt-build/lib/
+RUN NAMUVIRT_BUILD_DIR=/opt/namuvirt-build \
+    NAMUVIRT_REPO_ROOT=/opt/namuvirt-build \
+    bash /opt/namuvirt-build/lib/deps-ubuntu.sh \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY docker/entrypoint.sh /usr/local/bin/namuvirt-build-entrypoint
+RUN chmod 755 /usr/local/bin/namuvirt-build-entrypoint
+
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
+    PATH=/opt/maven/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    SRC_DIR=/src \
+    WORK_DIR=/work \
+    OUT_DIR=/out
+
+WORKDIR /work
+ENTRYPOINT ["/usr/local/bin/namuvirt-build-entrypoint"]

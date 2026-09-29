@@ -58,3 +58,30 @@ The commands above will generate Ubuntu 14.04, 16.04, and 22.04 packages which y
 The *package.sh* script can be used to build RPM packages for CloudStack. In the *packaging* script you can run the following command:
 
 ``./package.sh --pack oss --distribution el8``
+
+### namuVIRT: per-distribution spec directories
+
+`packaging/el9`, `packaging/centos8` and `packaging/suse15` are symlinks to `packaging/el8`,
+so a single spec serves them. `packaging/el10` is a **real directory** because EL10 needs
+separate handling (no `java-17-openjdk` in the repositories, no dnf modularity).
+
+Rules when touching either spec:
+
+* An upstream `cloud.spec` change (subpackages, `Requires`, `%files`, `%build`) must be applied
+  to **both** `packaging/el8/cloud.spec` and `packaging/el10/cloud.spec`.
+* Verify afterwards: `diff packaging/el8/cloud.spec packaging/el10/cloud.spec`
+* Allowed differences, as of the Rocky 10 support commit:
+
+  | Line | el8 | el10 | Why |
+  |------|-----|------|-----|
+  | `%global cspkgdir` | `packaging/el8` | `packaging/el10` | Each spec reads its own data files (`replace.properties`, `cloudstack-sccs`, `cloud-ipallocator.rc`, `cloud.limits`, `filelimit.conf`) |
+  | `Requires` of `cloudstack-management` (ISO tool) | `(genisoimage or mkisofs)` | `/usr/bin/mkisofs` | EL10 ships neither package name; `xorriso` provides only the file |
+  | `%posttrans common` python site dir | `distutils.sysconfig.get_python_lib(1)` | `sysconfig.get_path('platlib', 'posix_prefix', ...)` | Python 3.12 on EL10 has no `distutils`; without this the scriptlet silently skips copying `cloudutils` |
+
+* A change that is genuinely EL10-only (for example a `Requires` that does not exist on EL10)
+  goes into `packaging/el10/cloud.spec` alone and is added to the table above.
+* `packaging/el10` intentionally omits `cloudstack-agent.te`: the spec does not reference it.
+
+`./build/rocky.sh` picks the directory from the build host (`el<VERSION_ID major>`) and fails
+early when `packaging/<dist>/cloud.spec` is missing. See `build/README.md`.
+

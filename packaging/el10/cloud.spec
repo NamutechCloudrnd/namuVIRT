@@ -24,7 +24,7 @@
 # packaging/el9, centos8 and suse15 are symlinks to packaging/el8, so the el8
 # spec serves them as well. packaging/el10 is a real directory (EL10 needs
 # separate handling), so keep both specs in sync - see packaging/README.md.
-%global cspkgdir packaging/el8
+%global cspkgdir packaging/el10
 
 # DISABLE the post-percentinstall java repacking and line number stripping
 # we need to find a way to just disable the java repacking and line number stripping, but not the autodeps
@@ -82,7 +82,9 @@ Requires: sudo
 Requires: /sbin/service
 Requires: /sbin/chkconfig
 Requires: /usr/bin/ssh-keygen
-Requires: (genisoimage or mkisofs)
+# EL10 has neither a genisoimage nor an mkisofs package; xorriso only provides the
+# /usr/bin/mkisofs file, so require the file the management server actually runs.
+Requires: /usr/bin/mkisofs
 Requires: ipmitool
 Requires: %{name}-common = %{_ver}
 Requires: (iptables-services or iptables)
@@ -426,7 +428,9 @@ install -D tools/whisker/LICENSE ${RPM_BUILD_ROOT}%{_defaultdocdir}/%{name}-inte
 %posttrans common
 
 unalias cp
-python_dir=$(python3 -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(1))")
+# EL10 ships Python 3.12, which has no distutils. sysconfig with the posix_prefix scheme
+# under /usr yields the same path distutils.get_python_lib(1) gives on EL8/EL9.
+python_dir=$(python3 -c "import sysconfig; print(sysconfig.get_path('platlib', 'posix_prefix', {'platbase': '/usr', 'base': '/usr'}))")
 if [ ! -z $python_dir ];then
   cp -f -r /usr/share/cloudstack-common/python-site/* $python_dir/
 fi

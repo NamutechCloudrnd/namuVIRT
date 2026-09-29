@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Rocky 8/9 RPM 빌드 본체. 엔트리: ./build/rocky.sh
-# packaging/package.sh 호출 → build/packages/rpm/<el8|el9>/latest/ 수집.
+# Rocky 8/9/10 RPM 빌드 본체. 엔트리: ./build/rocky.sh
+# packaging/package.sh 호출 → build/packages/rpm/<el8|el9|el10>/latest/ 수집.
 
 set -Eeuo pipefail
 
@@ -12,15 +12,16 @@ LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${LIB_DIR}/common.sh"
 
-# 빌드 호스트 OS 로 기본 dist 결정 (Rocky 9 → el9, 그 외 el8). packaging/el9 는 el8 심볼릭 링크.
-if [ "$(el_major_version)" = "9" ]; then
-  RPM_DIST="${RPM_DIST:-el9}"
-else
-  RPM_DIST="${RPM_DIST:-el8}"
-fi
+# 빌드 호스트 OS 로 기본 dist 결정 (Rocky 8/9/10 → el8/el9/el10).
+# packaging/el9·centos8·suse15 는 el8 심볼릭 링크, packaging/el10 은 실제 디렉터리.
+RPM_DIST="${RPM_DIST:-$(rpm_dist_id)}"
+[ -n "${RPM_DIST}" ] \
+  || die "cannot determine EL dist from /etc/os-release — set RPM_DIST explicitly (e.g. RPM_DIST=el10)"
 UI_NODE_HEAP_MB="${NODE_MAX_OLD_SPACE_SIZE:-16384}"
 UI_NODE_PATH="/usr/bin:/bin:/usr/sbin:/sbin"
 UI_NODE_MIN_MAJOR=18
+# 빌드에 쓸 JDK major (EL8/EL9: 17, EL10+: 21 — 저장소에 java-17-openjdk 가 없음).
+JDK_MAJOR="$(rocky_jdk_major)"
 # OpenSSL 3 (Rocky 9) 에서 webpack 4 md4 해시용으로 detect_ui_node_openssl_option 이 채움.
 UI_NODE_EXTRA_OPTS=""
 OUT_DIR="${BUILD_DIR}/packages/rpm/${RPM_DIST}/latest"
@@ -32,17 +33,18 @@ usage() {
 Usage:
   ./build/rocky.sh [--mode normal|dev|clean] [--without-vmware] [--no-auto-deps] [--dry-run]
 
-Builds the current namuVIRT tree as EL8/EL9 RPMs via packaging/package.sh.
-Output: build/packages/rpm/<el8|el9>/latest/
+Builds the current namuVIRT tree as EL8/EL9/EL10 RPMs via packaging/package.sh.
+Output: build/packages/rpm/<el8|el9|el10>/latest/
 
 Never runs git checkout, git reset, or git clean.
 Every run: install missing host deps → full package build → fresh output under build/packages/.
-Missing Java 17 / rpmbuild / Maven / nodejs>=18 on Rocky 8/9: auto-install via build/lib/deps-rocky.sh
+Missing JDK (17 on EL8/EL9, 21 on EL10) / rpmbuild / Maven / nodejs>=18 on Rocky 8/9/10:
+  auto-install via build/lib/deps-rocky.sh
   (disable with --no-auto-deps or SKIP_ENSURE_BUILD_DEPS=1; sudo may be used).
 
 Environment:
   NON_OSS_DIR              default: vendor/cloudstack-nonoss
-  RPM_DIST                 default: el9 on Rocky 9, otherwise el8
+  RPM_DIST                 default: el<major> of the build host (el8|el9|el10)
   NODE_MAX_OLD_SPACE_SIZE  UI npm heap MiB (default: 16384)
 USAGE
 }
@@ -61,6 +63,15 @@ sanitize_ui_build_env() {
 # Rocky 빌드 도구 누락 시 deps-rocky.sh 자동 호출.
 ensure_build_dependencies() {
   ensure_build_deps_script "${LIB_DIR}/deps-rocky.sh"
+}
+
+# packaging/<RPM_DIST>/cloud.spec 존재 확인. 잘못된 RPM_DIST 를 빌드 시작 전에 잡는다.
+verify_rpm_dist_packaging() {
+  local spec="${REPO_DIR}/packaging/${RPM_DIST}/cloud.spec" available
+  available="$(cd "${REPO_DIR}/packaging" && ls -d el* 2>/dev/null | tr '\n' ' ')"
+  [ -f "${spec}" ] || die "unsupported RPM_DIST=${RPM_DIST} — missing ${spec#"${REPO_DIR}/"}
+  available dists: ${available}"
+  log "packaging dir: packaging/${RPM_DIST}"
 }
 
 # rpmbuild·mvn·/usr/bin/node 등 RPM 빌드 필수 도구 확인.
@@ -198,12 +209,14 @@ log "rpm_dist=${RPM_DIST}"
 log "branch=${BRANCH}"
 log "build-mode=${MODE}"
 log "with-vmware=${WITH_VMWARE}"
+log "jdk-major=${JDK_MAJOR}"
 log "ui-node-heap-mb=${UI_NODE_HEAP_MB}"
 log "output=${OUT_DIR}"
 log "execution=$([ "${DRY_RUN}" -eq 1 ] && echo dry-run || echo apply)"
 
+verify_rpm_dist_packaging
 ensure_build_dependencies
-verify_java17_jdk
+verify_jdk "${JDK_MAJOR}"
 verify_rpm_build_tools
 ensure_vmware_non_oss_deps
 run mkdir -p "${LOG_DIR}"
