@@ -118,7 +118,11 @@ Requires: ethtool
 Requires: (net-tools or net-tools-deprecated)
 Requires: iproute
 Requires: ipset
-Requires: perl
+# perl 메타 패키지가 아니라 인터프리터만 요구한다. EL9+ 의 "perl" 은 perl-devel → glibc-devel 까지 끌고 오고
+# glibc-devel 은 glibc 와 버전이 정확히 같아야 해서, ISO(GA) 버전 그대로인 폐쇄망 호스트에 번들(z-stream)로
+# 설치하면 glibc 업그레이드를 요구하다 깨진다 (2026-10-02 Rocky 9: glibc 266 호스트 vs glibc-devel 275 번들).
+# agent/common 런타임에는 perl 호출이 없다(빌드 도구만 사용).
+Requires: perl-interpreter
 Requires: rsync
 Requires: cifs-utils
 Requires: (python3-libvirt or python3-libvirt-python)

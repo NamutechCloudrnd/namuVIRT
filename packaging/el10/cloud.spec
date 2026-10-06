@@ -120,7 +120,9 @@ Requires: ethtool
 Requires: (net-tools or net-tools-deprecated)
 Requires: iproute
 Requires: ipset
-Requires: perl
+# perl 메타 패키지가 아니라 인터프리터만 요구한다 (el8/cloud.spec 와 같은 이유 — perl → perl-devel →
+# glibc-devel 이 glibc 와 정확히 같은 버전을 요구해, ISO(GA) 버전인 폐쇄망 호스트에서 깨진다).
+Requires: perl-interpreter
 Requires: rsync
 Requires: cifs-utils
 Requires: (python3-libvirt or python3-libvirt-python)
