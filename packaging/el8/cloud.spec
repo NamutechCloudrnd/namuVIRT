@@ -129,6 +129,9 @@ Requires: (python3-libvirt or python3-libvirt-python)
 Requires: (qemu-img or qemu-tools)
 Requires: qemu-kvm
 Requires: cryptsetup
+# 호스트 추가 시 keystore-cert-import 가 openssl CLI 로 cloud.key(libvirt/VNC TLS 키)를 추출한다.
+# 출력을 버리므로 없으면 에러 없이 빈 키가 남는다 — Rocky Minimal 에는 openssl 이 보장되지 않는다.
+Requires: openssl
 Requires: rng-tools
 Requires: (libgcrypt > 1.8.3 or libgcrypt20)
 Requires: (selinux-tools if selinux-tools)
