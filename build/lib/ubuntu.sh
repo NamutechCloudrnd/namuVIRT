@@ -135,7 +135,8 @@ verify_changelog_version() {
   local changelog="${DEBIAN_SRC_DIR}/changelog" deb_ver pom_ver
   [ -f "${changelog}" ] || die "changelog not found: ${changelog}"
   deb_ver="$(head -n1 "${changelog}" | awk -F '[()]' '{print $2}')"
-  pom_ver="$(grep '<version>' "${REPO_DIR}/pom.xml" | head -2 | tail -1 | cut -d'>' -f2 | cut -d'<' -f1)"
+  # grep | head 는 pipefail 하에서 grep 이 SIGPIPE(141) 로 죽어 set -e 로 조용히 종료될 수 있음 → grep -m 로 직접 끊음.
+  pom_ver="$(grep -m2 '<version>' "${REPO_DIR}/pom.xml" | tail -1 | cut -d'>' -f2 | cut -d'<' -f1)"
   [ -n "${deb_ver}" ] || die "unable to parse version from ${changelog}"
   [ "${deb_ver}" = "${pom_ver}" ] \
     || die "version mismatch: ${changelog#"${REPO_DIR}/"} (${deb_ver}) != pom.xml (${pom_ver})"
