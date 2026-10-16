@@ -1,0 +1,131 @@
+namuVIRT는 VM 및 VM의 네트워크를 관리의 편의성을 위해 다양한 종류의 가상 네트워크와 그 네트워크의 설정을 지원한다. 각 네트워크의 설정은 크게 연결성과 L2의존도가 큰 L2/Shared Network, 각 네트워크 간의 고립을 강조하는 Isolated Network, VPC 및 내부 서브넷을 통해 트래픽 분산 또는 접근 제한을 제공하는 VPC Network가 있다.
+
+## L2/Shared Network
+
+가상 라우터 기반의 Virtual Network를 구성하지 않고 VM을 기존 물리 네트워크에 직접 연결하려면 L2 Network 또는 Shared Network를 사용할 수 있다.
+
+두 네트워크는 제공하는 기능에 차이가 있다.
+
+- L2 Network : VM을 L2 네트워크에 직접 연결한다. IP 주소, 게이트웨이, DHCP 등의 네트워크 서비스는 외부 네트워크에서 별도로 구성
+
+- Shared Network : VM과 Virtual Router가 동일한 Shared Network에 연결된다. Virtual Router는 DHCP와 DNS 서비스를 제공하며, VM은 이를 통해 IP 주소와 DNS 정보를 할당받는다.
+
+### L2 Network {#l2-network .j-제목-4}
+
+L2 네트워크는 VM이 기존에 L2 Bridge 또는 L2 Switch에 직접 연결하는 방식으로 VM의 IP주소, 게이트웨이 및 DNS 등의 네트워크 정보는 연결된 외부 L2네트워크의 설정에 따른다.
+
+![](../../image/network/networking/image1.png){width="6.454632545931759in" height="2.7708333333333335in"}
+
+그림 ‑ L2 Network 구성 예시위 그림은 L2 Network에 연결된 구성을 보여준다. 동일한 네트워크에 연결된 VM은 L2네트워크에서 정의한 서브넷과 게이트웨이를 사용한다.
+
+- 참고 : L2 Network에서는 namuVIRT가 DHCP 서비스를 제공하지 않으므로 외부 네트워크에 DHCP서버가 없으면 각 VM에 IP 주소, 게이트웨이 및 DNS 정보를 직접 입력해야 합니다.
+
+### L2 Network 생성하기  {#l2-network-생성하기 .j-제목-4}
+
+1.  Network \> Guest Networks 메뉴에서 Network 추가
+
+2.  L2 Network 선택
+
+3.  아래 정보 입력\
+    **- 이름 :** L2 Network 의 이름\
+    **- Zone :** L2 Network 를 생성할 Zone\
+    **- 도메인 :** L2 Network를 사용할 namuVIRT 내에서 정의한 도메인\
+    **- 계정 :** L2 Network를 사용할 계정\
+    **- 네트워크 오퍼링 :** L2 Network용 오퍼링
+
+![](../../image/network/networking/image2.png){width="6.5784722222222225in" height="3.120138888888889in"}
+
+> 그림 ‑ L2 Network 생성 화면
+
+L2 Network 는 IP주소 범위, 게이트웨이 등의 정보를 설정하지 않으므로 생성 과정이 비교적 단순한다.
+
+### Shared Network {#shared-network .j-제목-4}
+
+Shared Network는 VM을 기존 L2 네트워크에 연결하면서 Virtual Router를 통해 DHCP와 DNS 서비스를 제공받는다.
+
+VM과 Virtual Router는 동일한 Shared Network에 연결되며, Virtual Router는 VM에 다음 네트워크 정보를 제공한다.
+
+- DHCP를 통한 IP 주소 할당
+
+- DNS 서버 정보 제공
+
+- 기본 게이트웨이 정보 제공
+
+![](../../image/network/networking/image3.png){width="6.58125in" height="3.0591568241469815in"}
+
+> 그림 ‑ Shared Network 구성 예시
+
+위 그림은 VM과 Virtual Router가 동일한 Shared Network에 연결된 구성을 보여준다. VM은 Virtual Router가 제공하는 DHCP와 DNS서비스를 이용하여 네트워크 정보를 자동으로 설정할 수 있다.
+
+- 참고 : Virtual Router가 DHCP와 DNS를 제공하더라도 동일 서브넷에 있는 VM간 트래픽이 항상 Virtual Router를 경유하는 것은 아니다. 동일한 Shared Network에 연결된 VM간 통신은 L2 네트워크를 통해 직접 전달된다
+
+### Shared Network 생성  {#shared-network-생성 .j-제목-4}
+
+Shared Network를 생성하려면 연결할 외부 네트워크의 구성을 먼저 확인해야 한다.
+
+Shared Network에는 내부와 외부 IP에 대한 구분이 없어 Shared Network에 설정하는 VLAN, 게이트웨이, 넷마스크, 및 IP 주소 범위가 실제 L2 네트워크 설정과 일치해야 한다.
+
+1.  Network \> Guest Networks 메뉴에서 Network 추가
+
+2.  Shared Network 선택
+
+3.  아래 정보 입력\
+    **- 이름 :** Shared Network 의 이름\
+    **- Zone :** Shared Network 를 생성할 Zone\
+    **- 물리 네트워크 :** Shared Network 를 연결할 물리 네트워크\
+    **- 가상 네트워크(VLAN) :** 외부 L2 네트워크(switch)에서 사용하는 VLAN ID\
+    **- IPv4 :** 선택한 외부 L2 네트워크의 게이트웨이, 넷마스크, 시작 IP 주소, 끝 IP 주소를 입력한다.
+
+![](../../image/network/networking/image4.png){width="6.5784722222222225in" height="3.120138888888889in"}
+
+> 그림 ‑ Shared Network 생성
+
+이 때 주의할 사항으로 Advance Zone의 경우 Zone에서 지정한 traffic 설정의 Range 및 CIDR에 포함되지 않게 설정해야 한다. 아래 Public Traffic의 CIDR이 10.10.14.0/24를 차지하기 때문에 이 영역을 침범하는 Shared Network는 만들 수 없다.
+
+![](../../image/network/networking/image5.png){width="6.5784722222222225in" height="3.1215277777777777in"}
+
+> 그림 ‑ Public Traffic의 CIDR
+
+## Isolated Network
+
+Isolated Network는 Shared Network와 외부에 영향을 받지 않는 독립적인 네트워크 영역을 생성한다. 이 네트워크에 속한 VM들은 서로와 통신할 수 있지만, 반대로 다른 Shared/Isolated Network의 VM과는 통신할 수 없다. 또한, 외부망에 연결되기위해서 Source NAT를 가지게 된다. 아래 Isolated Network 구성도 예시는 Isolated Network가 Shared Network와는 달리 Private IP를 가지고 외부와 격리되는 것을 보여준다.
+
+![](../../image/network/networking/image6.png){width="6.58125in" height="3.038013998250219in"}
+
+> 그림 ‑ Isolated Network 구성도 예시
+
+### Isolated Network 구성 {#isolated-network-구성 .j-제목-4}
+
+1.  Network \> Guest Networks 메뉴에서 Network 추가
+
+2.  Isolated Network 선택
+
+3.  아래 정보 입력\
+    **- 이름 :** Isolated Network 의 이름\
+    **- Zone :** Isolated Network 를 생성할 Zone\
+    **- 도메인** **:** Isolated Network를 사용할 namuVIRT 내에서 정의한 도메인\
+    **- 계정** **:** Isolated Network를 사용할 계정\
+    **- 게이트웨이/넷마스크 :** 네트워크의 IPv4 대역을 정의. Shared Network 또는 VPC에 속한 Isolated Network 생성시 필수 입력\
+    **- 서비스용 네트워크의 라우터에 대한 IPv4 주소** : Virtual Router의 공용 인터페이스에 할당할 IPv4 주소 입력 -- 외부로 통신하기 위한 Source NAT 주소로 사용
+
+여기서 주의할 점은 일반 Isolated Network에서도 게이트웨이와 넷마스크가 필수는 아니다.
+
+- Shared Network, VPC에 속한 Isolated Network 인 경우 필수
+
+또한, 서비스용 네트워크의 라우터에 대한 IPv4주소는 내부 IP주소가 아닌 Virtual Source NAT용 공용 IP주소이다.
+
+![](../../image/network/networking/image7.png){width="6.5784722222222225in" height="3.1215277777777777in"}
+
+> 그림 ‑ Isolated Network 생성 화면
+
+생성된 네트워크에 VM들을 생성해본다. 이 VM들은 서로 통신이 가능하지만 외부에서는 접속할 수 없다. 외부에서 접속하기 위해서는 Public IP를 할당 받아야 한다. Public IP는 Zone에서 지정한 Public Traffic의 범위를 기준으로 할당 받는다. 아래 Isolated Network에 할당된 Public IP 주소와 같이 네트워크에 Public IP를 할당 받는다.
+
+![](../../image/network/networking/image8.png){width="6.5784722222222225in" height="3.1215277777777777in"}
+
+> 그림 ‑ Isolated Network에 할당된 Public IP 주소
+
+아래 Public IP를 가상머신에 할당처럼 할당 받은 Public IP는 포트 포워딩 또는 Static NAT 설정으로 특정 가상머신에 할당할 수 있다.
+
+![](../../image/network/networking/image9.png){width="6.5784722222222225in" height="3.1215277777777777in"}
+
+> 그림 ‑ Public IP를 가상머신에 할당
