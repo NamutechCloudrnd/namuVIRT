@@ -1,9 +1,3 @@
-GPU Passthrough를 사용하는 VM을 namuVIRT 포털에서 만드는 절차이다. 「GPU Passthrough 호스트 설정」 문서에 따라 KVM 호스트 설정이 마무리된 뒤 진행한다.
-
-**사전 준비**
-
-- **Infrastructure**, **Configuration**, **Service Offerings** 메뉴를 사용할 수 있는 관리자 계정으로 포털에 로그인한다.
-
 ## Host 확인 {#host-확인 .j-제목-3}
 
 **Infrastructure \> Hosts** 메뉴에서 호스트 상세 페이지의 **GPU** 탭에서 자동으로 등록된 디바이스를 확인할 수 있다. GPU가 모두 표시되는지 확인한다. 장치가 보이지 않으면 **Discover GPU devices** 버튼을 눌러 다시 조회한다.
