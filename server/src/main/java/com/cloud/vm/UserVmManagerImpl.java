@@ -4320,7 +4320,7 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
                     DiskOffering dataDiskOffering = datadiskTemplateToDiskOffering.getValue();
 
                     if (dataDiskTemplate == null
-                            || (!dataDiskTemplate.getTemplateType().equals(TemplateType.DATADISK)) && (dataDiskTemplate.getState().equals(VirtualMachineTemplate.State.Active))) {
+                            || (!TemplateType.DATADISK.equals(dataDiskTemplate.getTemplateType())) && (dataDiskTemplate.getState().equals(VirtualMachineTemplate.State.Active))) {
                         throw new InvalidParameterValueException("Invalid Template ID specified for Datadisk Template" + datadiskTemplateToDiskOffering.getKey());
                     }
                     long dataDiskTemplateId = datadiskTemplateToDiskOffering.getKey();
@@ -4384,7 +4384,7 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
                 }
             }
 
-            if (template.getTemplateType().equals(TemplateType.SYSTEM) && !CKS_NODE.equals(vmType) && !SHAREDFSVM.equals(vmType)) {
+            if (TemplateType.SYSTEM.equals(template.getTemplateType()) && !CKS_NODE.equals(vmType) && !SHAREDFSVM.equals(vmType)) {
                 throw new InvalidParameterValueException(String.format("Unable to use system template %s to deploy a user vm", template));
             }
 

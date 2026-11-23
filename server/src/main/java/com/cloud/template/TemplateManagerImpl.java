@@ -962,7 +962,7 @@ public class TemplateManagerImpl extends ManagerBase implements TemplateManager,
         }
 
         // Verify template is not Datadisk template
-        if (template.getTemplateType().equals(TemplateType.DATADISK)) {
+        if (TemplateType.DATADISK.equals(template.getTemplateType())) {
             throw new InvalidParameterValueException(String.format("Template %s is of type Datadisk. Cannot copy Datadisk Templates.", template));
         }
 

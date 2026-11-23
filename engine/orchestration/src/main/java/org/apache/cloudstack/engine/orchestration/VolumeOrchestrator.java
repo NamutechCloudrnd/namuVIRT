@@ -888,7 +888,7 @@ public class VolumeOrchestrator extends ManagerBase implements VolumeOrchestrati
         }
         if (template.getFormat() == ImageFormat.ISO) {
             vol.setIsoId(template.getId());
-        } else if (template.getTemplateType().equals(Storage.TemplateType.DATADISK)) {
+        } else if (Storage.TemplateType.DATADISK.equals(template.getTemplateType())) {
             vol.setTemplateId(template.getId());
         }
         // display flag matters only for the User vms
